@@ -91,6 +91,7 @@ typedef struct
 
     CuiFontId list_view_font;
 
+    CuiWidget filter_checkbox;
     ListView list_view;
 
     CuiWidget *filter_input;
@@ -246,46 +247,85 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     x = list_rect.min.x;
     y = (float) (list_rect.min.y - list_view->scroll_offset.fractional_part);
 
-    uint32_t index = list_view->scroll_offset.integer_part;
+    CuiString filter_value = cui_string_trim(cui_widget_get_textinput_value(app.filter_input));
+    bool filter = app.filter_checkbox.value || (filter_value.count == 0);
 
-    while (index < app.filter_item_count)
+    uint32_t count = app.message_count;
+    uint32_t index = list_view->scroll_offset.integer_part;
+    uint32_t filter_index = 0;
+
+    if (filter)
+    {
+        count = app.filter_item_count;
+    }
+    else
+    {
+        while ((filter_index < app.filter_item_count) &&
+               (app.filter_items[filter_index].message_index < index))
+        {
+            filter_index += 1;
+        }
+    }
+
+    while (index < count)
     {
         CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
 
-        FilterItem *filter_item = app.filter_items + index;
-        CuiAssert(filter_item->message_index < app.message_count);
-        Message *message = app.messages + filter_item->message_index;
-
         x = list_rect.min.x;
+
+        CuiColor text_color = CuiHexColor(0xFFAFB7C4);
+        CuiColor character_color = CuiHexColor(0xFF333846);
+
+        Message *message;
+
+        if (filter)
+        {
+            FilterItem *filter_item = app.filter_items + index;
+            CuiAssert(filter_item->message_index < app.message_count);
+            message = app.messages + filter_item->message_index;
+        }
+        else
+        {
+            message = app.messages + index;
+
+            if ((filter_index < app.filter_item_count) &&
+                (app.filter_items[filter_index].message_index == index))
+            {
+                cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_advance), CuiHexColor(0xFF396CA8));
+                text_color = CuiHexColor(0xFFFFFFFF);
+                character_color = CuiHexColor(0xFF191C28);
+                filter_index += 1;
+            }
+        }
 
         CuiString timestamp_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u.%03u"), (uint32_t) (message->timestamp_us / 1000), (uint32_t) (message->timestamp_us % 1000));
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, timestamp_str);
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8 + (timestamp_content_width - w), y + row_baseline, timestamp_str, CuiHexColor(0xFF333846));
+        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8 + (timestamp_content_width - w), y + row_baseline, timestamp_str, text_color);
         x += timestamp_column_width;
 
         x += list_view->px1;
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, message->interface_name);
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8 + (interface_content_width - w), y + row_baseline, message->interface_name, CuiHexColor(0xFFafb7c4));
+        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8 + (interface_content_width - w), y + row_baseline, message->interface_name, text_color);
         x += interface_column_width;
 
         x += list_view->px1;
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, app.id_character);
-        cui_draw_fill_string(ctx, app.list_view_font, x - 0.5f * w, y + row_baseline, app.id_character, CuiHexColor(0xFF333846));
+        cui_draw_fill_string(ctx, app.list_view_font, x - 0.5f * w, y + row_baseline, app.id_character, character_color);
 
         CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), message->id);
 
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8, y + row_baseline, id_str, CuiHexColor(0xFFafb7c4));
+        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8, y + row_baseline, id_str, text_color);
         x += id_column_width;
 
         x += list_view->px1;
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("."));
-        cui_draw_fill_string(ctx, app.list_view_font, x - 0.5f * w, y + row_baseline, CuiStringLiteral("."), CuiHexColor(0xFF333846));
+        cui_draw_fill_string(ctx, app.list_view_font, x - 0.5f * w, y + row_baseline, CuiStringLiteral("."), character_color);
 
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8, y + row_baseline, message->message_name, CuiHexColor(0xFFafb7c4));
+        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8, y + row_baseline, message->message_name, text_color);
         x += list_view->px8 + cui_window_get_string_width(widget->window, app.list_view_font, message->message_name);
 
         x += list_view->px2;
@@ -355,7 +395,17 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
                 list_view->scroll_offset.fractional_part = lroundf((float) list_view->scroll_offset.fractional_part - delta);
                 list_view->scroll_offset = normalize_scroll_offset(list_view->scroll_offset, row_height);
 
-                limit_scroll_offset(&list_view->scroll_offset, app.filter_item_count);
+
+                bool filter = app.filter_checkbox.value;
+
+                if (filter)
+                {
+                    limit_scroll_offset(&list_view->scroll_offset, app.filter_item_count);
+                }
+                else
+                {
+                    limit_scroll_offset(&list_view->scroll_offset, app.message_count);
+                }
 
                 cui_window_request_redraw(window);
             }
@@ -401,7 +451,16 @@ apply_filter(void)
         app.filter_item_count += 1;
     }
 
-    limit_scroll_offset(&app.list_view.scroll_offset, app.filter_item_count);
+    bool filter = app.filter_checkbox.value;
+
+    if (filter)
+    {
+        limit_scroll_offset(&app.list_view.scroll_offset, app.filter_item_count);
+    }
+    else
+    {
+        limit_scroll_offset(&app.list_view.scroll_offset, app.message_count);
+    }
 }
 
 static inline void
@@ -492,6 +551,26 @@ parse_in_between(CuiString *str, CuiString *result, uint8_t left_char, uint8_t r
 }
 
 static void
+on_filter_action(CuiWidget *widget)
+{
+    CuiAssert(widget->window);
+    CuiWindow *window = widget->window;
+
+    bool filter = widget->value;
+
+    if (filter)
+    {
+        limit_scroll_offset(&app.list_view.scroll_offset, app.filter_item_count);
+    }
+    else
+    {
+        limit_scroll_offset(&app.list_view.scroll_offset, app.message_count);
+    }
+
+    cui_window_request_redraw(window);
+}
+
+static void
 on_input_action(CuiWidget *widget)
 {
     CuiString value = cui_string_trim(cui_widget_get_textinput_value(widget));
@@ -536,7 +615,7 @@ create_top_row(CuiWidget *parent, CuiArena *arena)
     CuiWidget *top_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
 
     cui_widget_set_main_axis(top_container, CUI_AXIS_X);
-    cui_widget_set_y_axis_gravity(top_container, CUI_GRAVITY_END);
+    cui_widget_set_x_axis_gravity(top_container, CUI_GRAVITY_END);
     cui_widget_add_flags(top_container, CUI_WIDGET_FLAG_DRAW_BACKGROUND);
     cui_widget_set_padding(top_container, 8.0f, 8.0f, 8.0f, 8.0f);
     cui_widget_set_border_width(top_container, 0.0f, 0.0f, 1.0f, 0.0f);
@@ -545,9 +624,15 @@ create_top_row(CuiWidget *parent, CuiArena *arena)
 
     cui_widget_append_child(parent, top_container);
 
-    CuiWidget *right_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+    cui_widget_init(&app.filter_checkbox, CUI_WIDGET_TYPE_CHECKBOX);
+    cui_widget_set_label(&app.filter_checkbox, CuiStringLiteral("Filter"));
+    cui_widget_set_padding(&app.filter_checkbox, 0.0f, 4.0f, 0.0f, 12.0f);
+    cui_widget_set_inline_padding(&app.filter_checkbox, 8.0f);
+    cui_widget_set_font(&app.filter_checkbox, app.list_view_font);
 
-    cui_widget_append_child(top_container, right_container);
+    app.filter_checkbox.on_action = on_filter_action;
+
+    cui_widget_append_child(top_container, &app.filter_checkbox);
 
     app.filter_input = create_widget(arena, CUI_WIDGET_TYPE_TEXTINPUT);
 
