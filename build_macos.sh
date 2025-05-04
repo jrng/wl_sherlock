@@ -76,7 +76,7 @@ elif [ "$(uname -m)" = "x86_64" ]; then
 
     echo "This machine can't compile for aarch64"
 
-    compile "${COMPILER} ${COMPILER_FLAGS} -o wl_sherlock -target x86_64-apple-macos10.14 ../src/wl_sherlock.cpp ${LINKER_FLAGS}"
+    compile "${COMPILER} ${COMPILER_FLAGS} -o wl_sherlock -target x86_64-apple-macos10.14 ../src/wl_sherlock.c ${LINKER_FLAGS}"
 
 fi
 

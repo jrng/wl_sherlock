@@ -33,7 +33,7 @@ if not exist "build" (
 
 pushd "build"
 
-echo [COMPILE] %COMPILER% %COMPILER_FLAGS% -Fe"wl_sherlock.exe" "../src/wl_sherlock.cpp" /link %LINKER_FLAGS%
-%COMPILER% %COMPILER_FLAGS% -Fe"wl_sherlock.exe" "../src/wl_sherlock.cpp" /link %LINKER_FLAGS%
+echo [COMPILE] %COMPILER% %COMPILER_FLAGS% -Fe"wl_sherlock.exe" "../src/wl_sherlock.c" /link %LINKER_FLAGS%
+%COMPILER% %COMPILER_FLAGS% -Fe"wl_sherlock.exe" "../src/wl_sherlock.c" /link %LINKER_FLAGS%
 
 popd
