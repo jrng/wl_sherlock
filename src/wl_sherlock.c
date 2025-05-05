@@ -56,6 +56,9 @@ typedef struct
     int32_t px16;
 
     ScrollOffset scroll_offset;
+
+    CuiRect list_rect;
+    CuiRect header_rect;
 } ListView;
 
 typedef struct
@@ -91,10 +94,9 @@ typedef struct
 
     CuiFontId list_view_font;
 
+    CuiWidget filter_input;
     CuiWidget filter_checkbox;
     ListView list_view;
-
-    CuiWidget *filter_input;
 } Application;
 
 static Application app;
@@ -122,25 +124,34 @@ normalize_scroll_offset(ScrollOffset offset, int32_t absolute_unit)
 }
 
 static void
-limit_scroll_offset(ScrollOffset *offset, int32_t count)
+limit_scroll_offset(ListView *list_view, int32_t count)
 {
-    if (offset->integer_part < 0)
+    int32_t line_height = cui_window_get_font_line_height(list_view->base.window, app.list_view_font);
+    int32_t row_height = line_height + 2 * list_view->px6 + list_view->px1;
+
+    ScrollOffset max_scroll_offset;
+    max_scroll_offset.integer_part = count;
+    max_scroll_offset.fractional_part = -cui_rect_get_height(list_view->list_rect);
+
+    max_scroll_offset = normalize_scroll_offset(max_scroll_offset, row_height);
+
+    if (max_scroll_offset.integer_part < 0)
     {
-        offset->integer_part = 0;
-        offset->fractional_part = 0;
+        max_scroll_offset.integer_part = 0;
+        max_scroll_offset.fractional_part = 0;
     }
 
-    int32_t max_scroll_offset = count - 1;
-
-    if (max_scroll_offset < 0)
+    if ((list_view->scroll_offset.integer_part > max_scroll_offset.integer_part) ||
+        ((list_view->scroll_offset.integer_part == max_scroll_offset.integer_part) &&
+         (list_view->scroll_offset.fractional_part > max_scroll_offset.fractional_part)))
     {
-        max_scroll_offset = 0;
+        list_view->scroll_offset = max_scroll_offset;
     }
 
-    if (offset->integer_part >= max_scroll_offset)
+    if (list_view->scroll_offset.integer_part < 0)
     {
-        offset->integer_part = max_scroll_offset;
-        offset->fractional_part = 0;
+        list_view->scroll_offset.integer_part = 0;
+        list_view->scroll_offset.fractional_part = 0;
     }
 }
 
@@ -167,8 +178,31 @@ list_view_get_preferred_size(CuiWidget *widget)
 static void
 list_view_layout(CuiWidget *widget, CuiRect rect)
 {
-    (void) widget;
-    (void) rect;
+    ListView *list_view = CuiContainerOf(widget, ListView, base);
+
+    CuiAssert(widget->window);
+    CuiWindow *window = widget->window;
+
+    list_view->list_rect = rect;
+    list_view->header_rect = rect;
+
+    // TODO: use font attached to widget
+    int32_t line_height = cui_window_get_font_line_height(window, app.list_view_font);
+    int32_t header_height = line_height + 2 * list_view->px4 + list_view->px1;
+
+    list_view->list_rect.min.y = cui_min_int32(list_view->list_rect.min.y + header_height, list_view->list_rect.max.y);
+    list_view->header_rect.max.y = list_view->list_rect.min.y;
+
+    bool filter = app.filter_checkbox.value;
+
+    if (filter)
+    {
+        limit_scroll_offset(list_view, app.filter_item_count);
+    }
+    else
+    {
+        limit_scroll_offset(list_view, app.message_count);
+    }
 }
 
 static void
@@ -197,11 +231,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     float row_baseline = (float) list_view->px6 + baseline_offset;
 
-    CuiRect list_rect = widget->rect;
-    CuiRect header_rect = widget->rect;
-
-    list_rect.min.y = cui_min_int32(list_rect.min.y + (line_height + 2 * list_view->px4 + list_view->px1), list_rect.max.y);
-    header_rect.max.y = list_rect.min.y;
+    CuiRect list_rect = list_view->list_rect;
+    CuiRect header_rect = list_view->header_rect;
 
     cui_draw_fill_rect(ctx, cui_make_rect(header_rect.min.x, header_rect.min.y, header_rect.max.x, header_rect.max.y - list_view->px1), CuiHexColor(0xFF1E2332));
     cui_draw_fill_rect(ctx, cui_make_rect(header_rect.min.x, header_rect.max.y - list_view->px1, header_rect.max.x, header_rect.max.y), color_theme->default_border);
@@ -247,7 +278,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     x = list_rect.min.x;
     y = (float) (list_rect.min.y - list_view->scroll_offset.fractional_part);
 
-    CuiString filter_value = cui_string_trim(cui_widget_get_textinput_value(app.filter_input));
+    CuiString filter_value = cui_string_trim(cui_widget_get_textinput_value(&app.filter_input));
     bool filter = app.filter_checkbox.value || (filter_value.count == 0);
 
     uint32_t count = app.message_count;
@@ -395,16 +426,15 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
                 list_view->scroll_offset.fractional_part = lroundf((float) list_view->scroll_offset.fractional_part - delta);
                 list_view->scroll_offset = normalize_scroll_offset(list_view->scroll_offset, row_height);
 
-
                 bool filter = app.filter_checkbox.value;
 
                 if (filter)
                 {
-                    limit_scroll_offset(&list_view->scroll_offset, app.filter_item_count);
+                    limit_scroll_offset(list_view, app.filter_item_count);
                 }
                 else
                 {
-                    limit_scroll_offset(&list_view->scroll_offset, app.message_count);
+                    limit_scroll_offset(list_view, app.message_count);
                 }
 
                 cui_window_request_redraw(window);
@@ -455,11 +485,11 @@ apply_filter(void)
 
     if (filter)
     {
-        limit_scroll_offset(&app.list_view.scroll_offset, app.filter_item_count);
+        limit_scroll_offset(&app.list_view, app.filter_item_count);
     }
     else
     {
-        limit_scroll_offset(&app.list_view.scroll_offset, app.message_count);
+        limit_scroll_offset(&app.list_view, app.message_count);
     }
 }
 
@@ -560,11 +590,11 @@ on_filter_action(CuiWidget *widget)
 
     if (filter)
     {
-        limit_scroll_offset(&app.list_view.scroll_offset, app.filter_item_count);
+        limit_scroll_offset(&app.list_view, app.filter_item_count);
     }
     else
     {
-        limit_scroll_offset(&app.list_view.scroll_offset, app.message_count);
+        limit_scroll_offset(&app.list_view, app.message_count);
     }
 
     cui_window_request_redraw(window);
@@ -634,21 +664,21 @@ create_top_row(CuiWidget *parent, CuiArena *arena)
 
     cui_widget_append_child(top_container, &app.filter_checkbox);
 
-    app.filter_input = create_widget(arena, CUI_WIDGET_TYPE_TEXTINPUT);
+    cui_widget_init(&app.filter_input, CUI_WIDGET_TYPE_TEXTINPUT);
 
-    cui_widget_set_icon(app.filter_input, CUI_ICON_SEARCH_12);
-    cui_widget_set_border_radius(app.filter_input, 2.0f, 2.0f, 2.0f, 2.0f);
-    cui_widget_set_font(app.filter_input, app.list_view_font);
-    cui_widget_set_label(app.filter_input, CuiStringLiteral("Filter messages..."));
-    cui_widget_set_textinput_buffer(app.filter_input, cui_alloc(arena, CuiKiB(1), CuiDefaultAllocationParams()), CuiKiB(1));
+    cui_widget_set_icon(&app.filter_input, CUI_ICON_SEARCH_12);
+    cui_widget_set_border_radius(&app.filter_input, 2.0f, 2.0f, 2.0f, 2.0f);
+    cui_widget_set_font(&app.filter_input, app.list_view_font);
+    cui_widget_set_label(&app.filter_input, CuiStringLiteral("Filter messages..."));
+    cui_widget_set_textinput_buffer(&app.filter_input, cui_alloc(arena, CuiKiB(1), CuiDefaultAllocationParams()), CuiKiB(1));
 
-    app.filter_input->on_action = on_input_action;
+    app.filter_input.on_action = on_input_action;
 
-    cui_widget_append_child(top_container, app.filter_input);
+    cui_widget_append_child(top_container, &app.filter_input);
 }
 
 static void
-create_list_view(CuiWidget *parent, CuiArena *arena)
+create_list_view(CuiWidget *parent)
 {
     cui_widget_init(&app.list_view.base, WIDGET_TYPE_LIST_VIEW);
     CuiWidgetInitCustomFunctions(&app.list_view.base, list_view_);
@@ -717,7 +747,7 @@ create_user_interface(CuiWindow *window, CuiArena *arena)
     cui_widget_append_child(root_widget, bottom_container);
 
     // create_info_panel(bottom_container, arena);
-    create_list_view(bottom_container, arena);
+    create_list_view(bottom_container);
 
     cui_window_set_root_widget(window, root_widget);
 }
