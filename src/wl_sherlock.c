@@ -53,12 +53,18 @@ typedef struct
     int32_t px4;
     int32_t px6;
     int32_t px8;
+    int32_t px12;
     int32_t px16;
 
     ScrollOffset scroll_offset;
 
     CuiRect list_rect;
     CuiRect header_rect;
+    CuiRect scroll_bar_rect;
+    CuiRect scroll_handle_rect;
+
+    bool scrolling;
+    int32_t mouse_offset_y;
 } ListView;
 
 typedef struct
@@ -124,6 +130,46 @@ normalize_scroll_offset(ScrollOffset offset, int32_t absolute_unit)
 }
 
 static void
+update_scroll_handle(ListView *list_view, int32_t count)
+{
+    CuiAssert(list_view->base.window);
+    CuiWindow *window = list_view->base.window;
+
+    int32_t line_height = cui_window_get_font_line_height(window, app.list_view_font);
+    int32_t row_height = line_height + 2 * list_view->px6 + list_view->px1;
+
+    int64_t view_height = cui_rect_get_height(list_view->list_rect);
+    int64_t content_height = (int64_t) row_height * (int64_t) count;
+
+    if (content_height > view_height)
+    {
+
+        int64_t scroll_bar_height = cui_rect_get_height(list_view->scroll_bar_rect);
+
+        int32_t scroll_handle_height = cui_max_int32(list_view->px16,
+                                                     cui_min_int32((int32_t) ((view_height * scroll_bar_height) / content_height),
+                                                                   cui_rect_get_height(list_view->list_rect)));
+
+        int64_t scroll_offset = (int64_t) list_view->scroll_offset.integer_part * (int64_t) row_height +
+                                (int64_t) list_view->scroll_offset.fractional_part;
+        int32_t scroll_handle_offset = (int32_t) (scroll_bar_height - (int64_t) scroll_handle_height) * scroll_offset / (content_height - view_height);
+
+        list_view->scroll_handle_rect = cui_make_rect(list_view->scroll_bar_rect.min.x + list_view->px2,
+                                                      list_view->scroll_bar_rect.min.y + scroll_handle_offset,
+#if CUI_PLATFORM_MACOS
+                                                      list_view->scroll_bar_rect.max.x - list_view->px2,
+#else
+                                                      list_view->scroll_bar_rect.max.x,
+#endif
+                                                      list_view->scroll_bar_rect.min.y + scroll_handle_offset + scroll_handle_height);
+    }
+    else
+    {
+        list_view->scroll_handle_rect = cui_make_rect(0, 0, 0, 0);
+    }
+}
+
+static void
 limit_scroll_offset(ListView *list_view, int32_t count)
 {
     int32_t line_height = cui_window_get_font_line_height(list_view->base.window, app.list_view_font);
@@ -153,6 +199,8 @@ limit_scroll_offset(ListView *list_view, int32_t count)
         list_view->scroll_offset.integer_part = 0;
         list_view->scroll_offset.fractional_part = 0;
     }
+
+    update_scroll_handle(list_view, count);
 }
 
 static void
@@ -165,6 +213,7 @@ list_view_set_ui_scale(CuiWidget *widget, float ui_scale)
     list_view->px4  = lroundf(ui_scale *  4.0f);
     list_view->px6  = lroundf(ui_scale *  6.0f);
     list_view->px8  = lroundf(ui_scale *  8.0f);
+    list_view->px12 = lroundf(ui_scale * 12.0f);
     list_view->px16 = lroundf(ui_scale * 16.0f);
 }
 
@@ -185,13 +234,22 @@ list_view_layout(CuiWidget *widget, CuiRect rect)
 
     list_view->list_rect = rect;
     list_view->header_rect = rect;
+    list_view->scroll_bar_rect = rect;
 
     // TODO: use font attached to widget
     int32_t line_height = cui_window_get_font_line_height(window, app.list_view_font);
     int32_t header_height = line_height + 2 * list_view->px4 + list_view->px1;
+#if CUI_PLATFORM_MACOS
+    int32_t scroll_bar_width = 2 * list_view->px2 + list_view->px12;
+#else
+    int32_t scroll_bar_width = list_view->px2 + list_view->px12;
+#endif
 
+    list_view->list_rect.max.x = cui_max_int32(list_view->list_rect.max.x - scroll_bar_width, list_view->list_rect.min.x);
     list_view->list_rect.min.y = cui_min_int32(list_view->list_rect.min.y + header_height, list_view->list_rect.max.y);
     list_view->header_rect.max.y = list_view->list_rect.min.y;
+    list_view->scroll_bar_rect.min.x = list_view->list_rect.max.x;
+    list_view->scroll_bar_rect.min.y = list_view->list_rect.min.y;
 
     bool filter = app.filter_checkbox.value;
 
@@ -268,6 +326,16 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     x += message_column_width;
 
     cui_draw_fill_rect(ctx, list_rect, background_color);
+    cui_draw_fill_rect(ctx, list_view->scroll_bar_rect, color_theme->default_border);
+    cui_draw_fill_rect(ctx, cui_make_rect(list_view->scroll_bar_rect.min.x + list_view->px2,
+                                          list_view->scroll_bar_rect.min.y,
+#if CUI_PLATFORM_MACOS
+                                          list_view->scroll_bar_rect.max.x - list_view->px2,
+#else
+                                          list_view->scroll_bar_rect.max.x,
+#endif
+                                          list_view->scroll_bar_rect.max.y), background_color);
+    cui_draw_fill_rounded_rect_1(ctx, list_view->scroll_handle_rect, list_view->px6, CuiHexColor(0x3FAFB7C4));
 
     CuiRect prev_clip = cui_draw_set_clip_rect(ctx, list_rect);
 
@@ -392,11 +460,78 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
 
     switch (event_type)
     {
+        case CUI_EVENT_TYPE_MOUSE_DRAG:
+        {
+            if (list_view->scrolling)
+            {
+                int32_t count;
+                bool filter = app.filter_checkbox.value;
+
+                if (filter)
+                {
+                    count = app.filter_item_count;
+                }
+                else
+                {
+                    count = app.message_count;
+                }
+
+                int32_t line_height = cui_window_get_font_line_height(window, app.list_view_font);
+                int32_t row_height = line_height + 2 * list_view->px6 + list_view->px1;
+
+                int64_t view_height = cui_rect_get_height(list_view->list_rect);
+                int64_t content_height = (int64_t) row_height * (int64_t) count;
+
+                if (content_height > view_height)
+                {
+                    int32_t scroll_handle_height = cui_rect_get_height(list_view->scroll_handle_rect);
+                    int64_t scroll_bar_height = cui_rect_get_height(list_view->scroll_bar_rect);
+
+                    CuiPoint mouse = cui_window_get_mouse_position(window);
+
+                    int32_t scroll_handle_offset = mouse.y + list_view->mouse_offset_y - list_view->scroll_bar_rect.min.y;
+
+                    int64_t scroll_offset = ((content_height - view_height) * (int64_t) scroll_handle_offset) / (scroll_bar_height - scroll_handle_height);
+
+                    if (scroll_offset < 0)
+                    {
+                        scroll_offset = 0;
+                    }
+
+                    list_view->scroll_offset.integer_part = (int32_t) (scroll_offset / (int64_t) row_height);
+                    list_view->scroll_offset.fractional_part = (int32_t) (scroll_offset - (list_view->scroll_offset.integer_part * row_height));
+                }
+                else
+                {
+                    list_view->scroll_offset.integer_part = 0;
+                    list_view->scroll_offset.fractional_part = 0;
+                }
+
+                limit_scroll_offset(list_view, count);
+
+                cui_window_request_redraw(window);
+            }
+        } break;
+
         case CUI_EVENT_TYPE_LEFT_DOWN:
         {
             cui_window_set_pressed(window, widget);
             cui_window_set_focused(window, widget);
+
+            CuiPoint mouse = cui_window_get_mouse_position(window);
+
+            if (cui_rect_has_point_inside(list_view->scroll_handle_rect, mouse))
+            {
+                list_view->scrolling = true;
+                list_view->mouse_offset_y = list_view->scroll_handle_rect.min.y - mouse.y;
+            }
+
             result = true;
+        } break;
+
+        case CUI_EVENT_TYPE_LEFT_UP:
+        {
+            list_view->scrolling = false;
         } break;
 
         case CUI_EVENT_TYPE_DOUBLE_CLICK:
