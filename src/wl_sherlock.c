@@ -97,7 +97,10 @@ typedef struct
     CuiString id_character;
 
     CuiWindow *window;
+    CuiWidget *root_widget;
 
+    float font_size;
+    float line_height;
     CuiFontId list_view_font;
 
     CuiWidget filter_input;
@@ -106,6 +109,63 @@ typedef struct
 } Application;
 
 static Application app;
+
+static inline void
+set_default_font_size(void)
+{
+    app.font_size   = 14.0f;
+    app.line_height = 1.0f;
+}
+
+static inline void
+reset_font_size(void)
+{
+    set_default_font_size();
+
+    cui_window_update_font(app.window, app.list_view_font, app.font_size, app.line_height);
+    cui_widget_layout(app.root_widget, app.root_widget->rect);
+    cui_window_request_redraw(app.window);
+}
+
+static inline void
+increase_font_size(void)
+{
+    app.font_size = app.font_size + 1.0f;
+
+    if (app.font_size < 10.0f)
+    {
+        app.font_size = 10.0f;
+    }
+
+    if (app.font_size > 20.0f)
+    {
+        app.font_size = 20.0f;
+    }
+
+    cui_window_update_font(app.window, app.list_view_font, app.font_size, app.line_height);
+    cui_widget_layout(app.root_widget, app.root_widget->rect);
+    cui_window_request_redraw(app.window);
+}
+
+static inline void
+decrease_font_size(void)
+{
+    app.font_size = app.font_size - 1.0f;
+
+    if (app.font_size < 10.0f)
+    {
+        app.font_size = 10.0f;
+    }
+
+    if (app.font_size > 20.0f)
+    {
+        app.font_size = 20.0f;
+    }
+
+    cui_window_update_font(app.window, app.list_view_font, app.font_size, app.line_height);
+    cui_widget_layout(app.root_widget, app.root_widget->rect);
+    cui_window_request_redraw(app.window);
+}
 
 static inline ScrollOffset
 normalize_scroll_offset(ScrollOffset offset, int32_t absolute_unit)
@@ -581,6 +641,32 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
             result = true;
         }
 
+        case CUI_EVENT_TYPE_KEY_DOWN:
+        {
+            if (cui_window_event_is_ctrl_down(window) || cui_window_event_is_command_down(window))
+            {
+                uint32_t codepoint = cui_window_event_get_codepoint(window);
+
+                switch (codepoint)
+                {
+                    case '0':
+                    {
+                        reset_font_size();
+                    } break;
+
+                    case '+':
+                    {
+                        increase_font_size();
+                    } break;
+
+                    case '-':
+                    {
+                        decrease_font_size();
+                    } break;
+                }
+            }
+        } break;
+
         default:
         {
         } break;
@@ -870,24 +956,24 @@ create_info_panel(CuiWidget *parent, CuiArena *arena)
 static void
 create_user_interface(CuiWindow *window, CuiArena *arena)
 {
-    CuiWidget *root_widget = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+    app.root_widget = create_widget(arena, CUI_WIDGET_TYPE_BOX);
 
-    cui_widget_set_main_axis(root_widget, CUI_AXIS_Y);
-    cui_widget_set_y_axis_gravity(root_widget, CUI_GRAVITY_START);
+    cui_widget_set_main_axis(app.root_widget, CUI_AXIS_Y);
+    cui_widget_set_y_axis_gravity(app.root_widget, CUI_GRAVITY_START);
 
-    create_top_row(root_widget, arena);
+    create_top_row(app.root_widget, arena);
 
     CuiWidget *bottom_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
 
     cui_widget_set_main_axis(bottom_container, CUI_AXIS_Y);
     cui_widget_set_y_axis_gravity(bottom_container, CUI_GRAVITY_END);
 
-    cui_widget_append_child(root_widget, bottom_container);
+    cui_widget_append_child(app.root_widget, bottom_container);
 
     // create_info_panel(bottom_container, arena);
     create_list_view(bottom_container);
 
-    cui_window_set_root_widget(window, root_widget);
+    cui_window_set_root_widget(window, app.root_widget);
 }
 
 static void
@@ -1081,23 +1167,22 @@ CUI_PLATFORM_MAIN
 
     cui_window_set_color_theme(app.window, &color_theme);
 
-    float font_size = 14.0f;
-    float line_height = 1.0f;
+    set_default_font_size();
 
     app.list_view_font = cui_window_find_font(app.window,
                                               // android
-                                              cui_make_sized_font_spec(CuiStringLiteral("CutiveMono"),            font_size, line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("CutiveMono"),            app.font_size, app.line_height),
                                               // all
-                                              cui_make_sized_font_spec(CuiStringLiteral("JetBrainsMono-Regular"), font_size, line_height),
-                                              cui_make_sized_font_spec(CuiStringLiteral("FiraCode-Regular"),      font_size, line_height),
-                                              cui_make_sized_font_spec(CuiStringLiteral("CascadiaCode"),          font_size, line_height),
-                                              cui_make_sized_font_spec(CuiStringLiteral("Courier New Bold"),      font_size, line_height),
-                                              cui_make_sized_font_spec(CuiStringLiteral("consola"),               font_size, line_height),
-                                              cui_make_sized_font_spec(CuiStringLiteral("DejaVuSansMono"),        font_size, line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("JetBrainsMono-Regular"), app.font_size, app.line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("FiraCode-Regular"),      app.font_size, app.line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("CascadiaCode"),          app.font_size, app.line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("Courier New Bold"),      app.font_size, app.line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("consola"),               app.font_size, app.line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("DejaVuSansMono"),        app.font_size, app.line_height),
                                               // emoji fonts
-                                              cui_make_sized_font_spec(CuiStringLiteral("Twemoji.Mozilla"),       font_size, line_height),
-                                              cui_make_sized_font_spec(CuiStringLiteral("TwemojiMozilla"),        font_size, line_height),
-                                              cui_make_sized_font_spec(CuiStringLiteral("seguiemj"),              font_size, line_height));
+                                              cui_make_sized_font_spec(CuiStringLiteral("Twemoji.Mozilla"),       app.font_size, app.line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("TwemojiMozilla"),        app.font_size, app.line_height),
+                                              cui_make_sized_font_spec(CuiStringLiteral("seguiemj"),              app.font_size, app.line_height));
 
 
     create_user_interface(app.window, &app.widget_arena);
