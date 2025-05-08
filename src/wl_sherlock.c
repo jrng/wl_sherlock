@@ -346,6 +346,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     x = list_rect.min.x;
     y = (float) (list_rect.min.y - list_view->scroll_offset.fractional_part);
 
+    // TODO: do not check if the filter is empty by checking the text input,
+    // because that will lead to false positives. E.g.: '.'.
     CuiString filter_value = cui_string_trim(cui_widget_get_textinput_value(&app.filter_input));
     bool filter = app.filter_checkbox.value || (filter_value.count == 0);
 
@@ -359,6 +361,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     }
     else
     {
+        // TODO: binary search
         while ((filter_index < app.filter_item_count) &&
                (app.filter_items[filter_index].message_index < index))
         {
