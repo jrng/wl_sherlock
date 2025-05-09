@@ -1,0 +1,93 @@
+name: build
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout 'cui'
+        uses: actions/checkout@v4
+        with:
+          repository: jrng/cui
+          path: cui
+      - name: Checkout 'wl_sherlock'
+        uses: actions/checkout@v4
+        with:
+          path: wl_sherlock
+      - name: Build 'cui'
+        run: |
+          cd cui
+          ./build_macos.sh -no_jobs reldebug
+      - name: Install 'cui'
+        run: |
+          mkdir -p $HOME/opt/cui/include
+          mkdir -p $HOME/opt/cui/lib64
+          cp cui/include/cui.h $HOME/opt/cui/include/
+          install -m 755 cui/build/libcui.a $HOME/opt/cui/lib64/libcui.a
+      - name: Build 'wl_sherlock'
+        run: |
+          cd wl_sherlock
+          ./build_macos.sh reldebug
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install --yes libegl-dev libx11-dev libxrandr-dev libwayland-dev libxkbcommon-dev libgles-dev
+      - name: Checkout 'cui'
+        uses: actions/checkout@v4
+        with:
+          repository: jrng/cui
+          path: cui
+      - name: Checkout 'wl_sherlock'
+        uses: actions/checkout@v4
+        with:
+          path: wl_sherlock
+      - name: Build 'cui'
+        run: |
+          cd cui
+          ./build_linux.sh -no_jobs reldebug
+      - name: Install 'cui'
+        run: |
+          mkdir -p $HOME/opt/cui/include
+          mkdir -p $HOME/opt/cui/lib64
+          cp cui/include/cui.h $HOME/opt/cui/include/
+          install -m 755 cui/build/libcui.a $HOME/opt/cui/lib64/libcui.a
+      - name: Build 'wl_sherlock'
+        run: |
+          cd wl_sherlock
+          ./build_linux.sh reldebug
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout 'cui'
+        uses: actions/checkout@v4
+        with:
+          repository: jrng/cui
+          path: cui
+      - name: Checkout 'wl_sherlock'
+        uses: actions/checkout@v4
+        with:
+          path: wl_sherlock
+      - name: Build 'cui'
+        shell: cmd
+        run: |
+          cd cui
+          call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat"
+          build_windows.bat reldebug
+      - name: Install 'cui'
+        shell: cmd
+        run: |
+          mkdir c:\\cui
+          copy cui\\include\\cui.h c:\\cui\\cui.h
+          copy cui\\build\\cui.lib c:\\cui\\cui.lib
+      - name: Build 'wl_sherlock'
+        shell: cmd
+        run: |
+          cd wl_sherlock
+          call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat"
+          build_windows.bat reldebug
