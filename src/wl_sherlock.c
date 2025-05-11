@@ -333,15 +333,15 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     CuiColor background_color = CuiHexColorLiteral(0xFF191C28);
 
-    float timestamp_content_width = ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999.999")));
-    float interface_content_width = roundf(widget->ui_scale * 230.0f);
-    float id_content_width = ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999999")));
-    float message_content_width = roundf(widget->ui_scale * 300.0f);
+    int32_t timestamp_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999.999")));
+    int32_t interface_content_width = lroundf(widget->ui_scale * 230.0f);
+    int32_t id_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999999")));
+    int32_t message_content_width = lroundf(widget->ui_scale * 300.0f);
 
-    float timestamp_column_width = timestamp_content_width + 2 * list_view->px8;
-    float interface_column_width = interface_content_width + 2 * list_view->px8;
-    float id_column_width = id_content_width + 2 * list_view->px8;
-    float message_column_width = message_content_width + 2 * list_view->px8;
+    int32_t timestamp_column_width = timestamp_content_width + 2 * list_view->px8;
+    int32_t interface_column_width = interface_content_width + 2 * list_view->px8;
+    int32_t id_column_width = id_content_width + 2 * list_view->px8;
+    int32_t message_column_width = message_content_width + 2 * list_view->px8;
 
     int32_t line_height = cui_window_get_font_line_height(widget->window, app.list_view_font);
     float baseline_offset = cui_window_get_font_baseline_offset(widget->window, app.list_view_font);
@@ -356,34 +356,34 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     cui_draw_fill_rect(ctx, cui_make_rect(header_rect.min.x, header_rect.min.y, header_rect.max.x, header_rect.max.y - list_view->px1), CuiHexColor(0xFF1E2332));
     cui_draw_fill_rect(ctx, cui_make_rect(header_rect.min.x, header_rect.max.y - list_view->px1, header_rect.max.x, header_rect.max.y), color_theme->default_border);
 
-    float x = header_rect.min.x;
-    float y = header_rect.min.y + header_baseline;
+    int32_t x = header_rect.min.x;
+    int32_t y = header_rect.min.y;
 
     float w;
 
     w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("Timestamp"));
-    cui_draw_fill_string(ctx, app.list_view_font, x + 0.5f * (timestamp_column_width - w), y, CuiStringLiteral("Timestamp"), CuiHexColor(0xFFafb7c4));
+    cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) timestamp_column_width - w), (float) y + header_baseline, CuiStringLiteral("Timestamp"), CuiHexColor(0xFFafb7c4));
     x += timestamp_column_width;
 
     cui_draw_fill_rect(ctx, cui_make_rect(x, header_rect.min.y, x + list_view->px1, header_rect.max.y), color_theme->default_border);
     x += list_view->px1;
 
     w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("Interface"));
-    cui_draw_fill_string(ctx, app.list_view_font, x + 0.5f * (interface_column_width - w), y, CuiStringLiteral("Interface"), CuiHexColor(0xFFafb7c4));
+    cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) interface_column_width - w), (float) y + header_baseline, CuiStringLiteral("Interface"), CuiHexColor(0xFFafb7c4));
     x += interface_column_width;
 
     cui_draw_fill_rect(ctx, cui_make_rect(x, header_rect.min.y, x + list_view->px1, header_rect.max.y), color_theme->default_border);
     x += list_view->px1;
 
     w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("Id"));
-    cui_draw_fill_string(ctx, app.list_view_font, x + 0.5f * (id_column_width - w), y, CuiStringLiteral("Id"), CuiHexColor(0xFFafb7c4));
+    cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) id_column_width - w), (float) y + header_baseline, CuiStringLiteral("Id"), CuiHexColor(0xFFafb7c4));
     x += id_column_width;
 
     cui_draw_fill_rect(ctx, cui_make_rect(x, header_rect.min.y, x + list_view->px1, header_rect.max.y), color_theme->default_border);
     x += list_view->px1;
 
     w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("Message"));
-    cui_draw_fill_string(ctx, app.list_view_font, x + 0.5f * (message_column_width - w), y, CuiStringLiteral("Message"), CuiHexColor(0xFFafb7c4));
+    cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) message_column_width - w), (float) y + header_baseline, CuiStringLiteral("Message"), CuiHexColor(0xFFafb7c4));
     x += message_column_width;
 
     cui_draw_fill_rect(ctx, list_rect, background_color);
@@ -402,10 +402,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     int32_t row_height = line_height + 2 * list_view->px6 + list_view->px1;
 
-    float row_advance = (float) row_height;
-
     x = list_rect.min.x;
-    y = (float) (list_rect.min.y - list_view->scroll_offset.fractional_part);
+    y = list_rect.min.y - list_view->scroll_offset.fractional_part;
 
     // TODO: do not check if the filter is empty by checking the text input,
     // because that will lead to false positives. E.g.: '.'.
@@ -454,7 +452,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
             if ((filter_index < app.filter_item_count) &&
                 (app.filter_items[filter_index].message_index == index))
             {
-                cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_advance), CuiHexColor(0xFF396CA8));
+                cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_height), CuiHexColor(0xFF396CA8));
                 text_color = CuiHexColor(0xFFFFFFFF);
                 character_color = CuiHexColor(0xFF191C28);
                 filter_index += 1;
@@ -464,38 +462,38 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
         CuiString timestamp_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u.%03u"), (uint32_t) (message->timestamp_us / 1000), (uint32_t) (message->timestamp_us % 1000));
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, timestamp_str);
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8 + (timestamp_content_width - w), y + row_baseline, timestamp_str, text_color);
+        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) timestamp_content_width - w), (float) y + row_baseline, timestamp_str, text_color);
         x += timestamp_column_width;
 
         x += list_view->px1;
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, message->interface_name);
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8 + (interface_content_width - w), y + row_baseline, message->interface_name, text_color);
+        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) interface_content_width - w), (float) y + row_baseline, message->interface_name, text_color);
         x += interface_column_width;
 
         x += list_view->px1;
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, app.id_character);
-        cui_draw_fill_string(ctx, app.list_view_font, x - 0.5f * w, y + row_baseline, app.id_character, character_color);
+        cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, app.id_character, character_color);
 
         CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), message->id);
 
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8, y + row_baseline, id_str, text_color);
+        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, id_str, text_color);
         x += id_column_width;
 
         x += list_view->px1;
 
         w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("."));
-        cui_draw_fill_string(ctx, app.list_view_font, x - 0.5f * w, y + row_baseline, CuiStringLiteral("."), character_color);
+        cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, CuiStringLiteral("."), character_color);
 
-        cui_draw_fill_string(ctx, app.list_view_font, x + list_view->px8, y + row_baseline, message->message_name, text_color);
+        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, message->message_name, text_color);
         x += list_view->px8 + cui_window_get_string_width(widget->window, app.list_view_font, message->message_name);
 
         x += list_view->px2;
 
-        cui_draw_fill_string(ctx, app.list_view_font, x, y + row_baseline, message->str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+        cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + row_baseline, message->str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
 
-        y += row_advance;
+        y += row_height;
 
         cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y - list_view->px1, list_rect.max.x, y), CuiHexColor(0xFF1E2332));
 
