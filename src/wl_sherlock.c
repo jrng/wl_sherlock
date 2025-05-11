@@ -1036,6 +1036,7 @@ on_open_file_action(CuiWidget *widget)
         if (cui_array_count(filenames) > 0)
         {
             load_wayland_file(filenames[0]);
+            cui_widget_layout(&app.list_view.base, app.list_view.base.rect);
         }
     }
 
