@@ -15,7 +15,7 @@ compile () {
 REL_PATH=$(dirname "$0")
 
 COMPILER_FLAGS="-std=c99 -I${CUI_ROOT}/include"
-LINKER_FLAGS="-L${CUI_ROOT}/lib64 -lcui -lm -pthread -lX11 -lXext -lXrandr -lwayland-client -lwayland-cursor -lxkbcommon -lEGL -lGLESv2 -lwayland-egl"
+LINKER_FLAGS="-L${CUI_ROOT}/lib64 -lcui -lm -pthread -ldl -lX11 -lXext -lXrandr -lwayland-client -lwayland-cursor -lxkbcommon -lEGL -lGLESv2 -lwayland-egl"
 
 if [ "$(uname)" != "Linux" ]; then
     echo "It doesn't look like your running on linux. You might want to check that."
