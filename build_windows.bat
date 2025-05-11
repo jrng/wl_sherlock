@@ -15,7 +15,7 @@ REM  -Gm-   disable minimal rebuild
 REM  -MT    static linkage of c standard library
 
 set COMPILER_FLAGS=-MT -nologo -Gm- -GR- -EHa- -Oi -Z7 -W2 -GS- -Gs10000000 -I"C:/cui/"
-set LINKER_FLAGS=-stack:0x100000,0x100000 -subsystem:windows,6.0 -opt:ref -libpath:"C:/cui/" -incremental:no user32.lib gdi32.lib shell32.lib uxtheme.lib d3d11.lib dxguid.lib d3dcompiler.lib cui.lib
+set LINKER_FLAGS=-stack:0x100000,0x100000 -subsystem:windows,6.0 -opt:ref -libpath:"C:/cui/" -incremental:no user32.lib gdi32.lib shell32.lib uxtheme.lib comdlg32.lib d3d11.lib dxguid.lib d3dcompiler.lib cui.lib
 
 set BUILD_TYPE=%1
 

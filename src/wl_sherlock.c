@@ -12,10 +12,10 @@ static const CuiColorTheme color_theme = {
     /* default_bg                           */ CuiHexColorLiteral(0xFF282C34),
     /* default_fg                           */ CuiHexColorLiteral(0xFFD7DAE0),
     /* default_border                       */ CuiHexColorLiteral(0xFF151721),
-    /* default_button_normal_background     */ CuiHexColorLiteral(0xFF2F333D),
+    /* default_button_normal_background     */ CuiHexColorLiteral(0xFF1E2332),
     /* default_button_normal_box_shadow     */ CuiHexColorLiteral(0x3F000000),
-    /* default_button_normal_border         */ CuiHexColorLiteral(0xFF1E1E1E),
-    /* default_button_normal_text           */ CuiHexColorLiteral(0xFFD7DAE0),
+    /* default_button_normal_border         */ CuiHexColorLiteral(0xFF151721),
+    /* default_button_normal_text           */ CuiHexColorLiteral(0xFF8C96A9),
     /* default_button_normal_icon           */ CuiHexColorLiteral(0xFFB7BAC0),
     /* default_textinput_normal_background  */ CuiHexColorLiteral(0xFF1a1e2d),
     /* default_textinput_normal_box_shadow  */ CuiHexColorLiteral(0x3F000000),
@@ -103,6 +103,7 @@ typedef struct
     float line_height;
     CuiFontId list_view_font;
 
+    CuiWidget open_file_button;
     CuiWidget filter_input;
     CuiWidget filter_checkbox;
     ListView list_view;
@@ -853,129 +854,6 @@ on_input_action(CuiWidget *widget)
     apply_filter();
 }
 
-static inline CuiWidget *
-create_widget(CuiArena *arena, uint32_t type)
-{
-    CuiWidget *widget = cui_alloc_type(arena, CuiWidget, CuiDefaultAllocationParams());
-
-    cui_widget_init(widget, type);
-
-    return widget;
-}
-               
-static void
-create_top_row(CuiWidget *parent, CuiArena *arena)
-{
-    CuiWidget *top_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
-
-    cui_widget_set_main_axis(top_container, CUI_AXIS_X);
-    cui_widget_set_x_axis_gravity(top_container, CUI_GRAVITY_END);
-    cui_widget_add_flags(top_container, CUI_WIDGET_FLAG_DRAW_BACKGROUND);
-    cui_widget_set_padding(top_container, 8.0f, 8.0f, 8.0f, 8.0f);
-    cui_widget_set_border_width(top_container, 0.0f, 0.0f, 1.0f, 0.0f);
-
-    top_container->color_normal_background = CUI_COLOR_WINDOW_TITLEBAR_BACKGROUND;
-
-    cui_widget_append_child(parent, top_container);
-
-    cui_widget_init(&app.filter_checkbox, CUI_WIDGET_TYPE_CHECKBOX);
-    cui_widget_set_label(&app.filter_checkbox, CuiStringLiteral("Filter"));
-    cui_widget_set_padding(&app.filter_checkbox, 0.0f, 4.0f, 0.0f, 12.0f);
-    cui_widget_set_inline_padding(&app.filter_checkbox, 8.0f);
-    cui_widget_set_font(&app.filter_checkbox, app.list_view_font);
-
-    app.filter_checkbox.on_action = on_filter_action;
-
-    cui_widget_append_child(top_container, &app.filter_checkbox);
-
-    cui_widget_init(&app.filter_input, CUI_WIDGET_TYPE_TEXTINPUT);
-
-    cui_widget_set_icon(&app.filter_input, CUI_ICON_SEARCH_12);
-    cui_widget_set_border_radius(&app.filter_input, 2.0f, 2.0f, 2.0f, 2.0f);
-    cui_widget_set_font(&app.filter_input, app.list_view_font);
-    cui_widget_set_label(&app.filter_input, CuiStringLiteral("Filter messages..."));
-    cui_widget_set_textinput_buffer(&app.filter_input, cui_alloc(arena, CuiKiB(1), CuiDefaultAllocationParams()), CuiKiB(1));
-
-    app.filter_input.on_action = on_input_action;
-
-    cui_widget_append_child(top_container, &app.filter_input);
-}
-
-static void
-create_list_view(CuiWidget *parent)
-{
-    cui_widget_init(&app.list_view.base, WIDGET_TYPE_LIST_VIEW);
-    CuiWidgetInitCustomFunctions(&app.list_view.base, list_view_);
-    cui_widget_append_child(parent, &app.list_view.base);
-}
-
-static void
-create_info_panel(CuiWidget *parent, CuiArena *arena)
-{
-    CuiWidget *status_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
-
-    cui_widget_set_main_axis(status_container, CUI_AXIS_X);
-    cui_widget_set_y_axis_gravity(status_container, CUI_GRAVITY_START);
-    cui_widget_add_flags(status_container, CUI_WIDGET_FLAG_DRAW_BACKGROUND);
-#if CUI_PLATFORM_MACOS
-    cui_widget_set_padding(status_container, 4.0f, 8.0f, 6.0f, 8.0f);
-#else
-    cui_widget_set_padding(status_container, 4.0f, 8.0f, 4.0f, 8.0f);
-#endif
-    cui_widget_set_inline_padding(status_container, 16.0f);
-
-    status_container->color_normal_background = CUI_COLOR_WINDOW_TITLEBAR_BACKGROUND;
-
-    cui_widget_append_child(parent, status_container);
-
-    // directory
-
-    CuiWidget *directory_label = create_widget(arena, CUI_WIDGET_TYPE_LABEL);
-
-    // cui_widget_set_label(directory_label, app.directory);
-
-    cui_widget_append_child(status_container, directory_label);
-
-    // file count
-
-    CuiWidget *file_count_label = create_widget(arena, CUI_WIDGET_TYPE_LABEL);
-
-    // cui_widget_set_label(file_count_label, cui_sprint(arena, CuiStringLiteral("%d files"), app.file_count));
-
-    cui_widget_append_child(status_container, file_count_label);
-
-    // folder count
-
-    CuiWidget *folder_count_label = create_widget(arena, CUI_WIDGET_TYPE_LABEL);
-
-    // cui_widget_set_label(folder_count_label, cui_sprint(arena, CuiStringLiteral("%d folders"), app.folder_count));
-
-    cui_widget_append_child(status_container, folder_count_label);
-}
-
-static void
-create_user_interface(CuiWindow *window, CuiArena *arena)
-{
-    app.root_widget = create_widget(arena, CUI_WIDGET_TYPE_BOX);
-
-    cui_widget_set_main_axis(app.root_widget, CUI_AXIS_Y);
-    cui_widget_set_y_axis_gravity(app.root_widget, CUI_GRAVITY_START);
-
-    create_top_row(app.root_widget, arena);
-
-    CuiWidget *bottom_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
-
-    cui_widget_set_main_axis(bottom_container, CUI_AXIS_Y);
-    cui_widget_set_y_axis_gravity(bottom_container, CUI_GRAVITY_END);
-
-    cui_widget_append_child(app.root_widget, bottom_container);
-
-    // create_info_panel(bottom_container, arena);
-    create_list_view(bottom_container);
-
-    cui_window_set_root_widget(window, app.root_widget);
-}
-
 static void
 load_wayland_file(CuiString wayland_filename)
 {
@@ -983,8 +861,22 @@ load_wayland_file(CuiString wayland_filename)
 
     if (file)
     {
+        if (app.message_allocated)
+        {
+            cui_platform_deallocate(app.messages, app.message_allocated * sizeof(*app.messages));
+            app.message_allocated = 0;
+            app.messages = 0;
+        }
+
+        if (app.filter_item_allocated)
+        {
+            cui_platform_deallocate(app.filter_items, app.filter_item_allocated * sizeof(*app.filter_items));
+            app.filter_item_allocated = 0;
+            app.filter_items = 0;
+        }
+
         uint64_t file_size = cui_platform_file_get_size(file);
-        char *buffer = (char *) cui_platform_allocate(file_size);
+        char *buffer = (char *) cui_platform_allocate(file_size); // TODO: this is leaked
 
         cui_platform_file_read(file, buffer, 0, file_size);
 
@@ -1128,6 +1020,171 @@ load_wayland_file(CuiString wayland_filename)
         // cui_platform_deallocate(buffer, file_size);
         cui_platform_file_close(file);
     }
+}
+
+static void
+on_open_file_action(CuiWidget *widget)
+{
+    (void) widget;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+    CuiTemporaryMemory temp_widget_memory = cui_begin_temporary_memory(&app.widget_arena);
+
+    CuiString *filenames = 0;
+    cui_array_init(filenames, 4, &app.widget_arena);
+
+    if (cui_platform_open_file_dialog(&app.temporary_memory, &app.widget_arena, &filenames, false, true, false))
+    {
+        if (cui_array_count(filenames) > 0)
+        {
+            load_wayland_file(filenames[0]);
+        }
+    }
+
+    cui_end_temporary_memory(temp_widget_memory);
+    cui_end_temporary_memory(temp_memory);
+}
+
+static inline CuiWidget *
+create_widget(CuiArena *arena, uint32_t type)
+{
+    CuiWidget *widget = cui_alloc_type(arena, CuiWidget, CuiDefaultAllocationParams());
+
+    cui_widget_init(widget, type);
+
+    return widget;
+}
+
+static void
+create_top_row(CuiWidget *parent, CuiArena *arena)
+{
+    CuiWidget *top_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+
+    cui_widget_set_main_axis(top_container, CUI_AXIS_X);
+    cui_widget_set_x_axis_gravity(top_container, CUI_GRAVITY_END);
+    cui_widget_add_flags(top_container, CUI_WIDGET_FLAG_DRAW_BACKGROUND);
+    cui_widget_set_padding(top_container, 8.0f, 8.0f, 8.0f, 8.0f);
+    cui_widget_set_border_width(top_container, 0.0f, 0.0f, 1.0f, 0.0f);
+
+    top_container->color_normal_background = CUI_COLOR_WINDOW_TITLEBAR_BACKGROUND;
+
+    cui_widget_append_child(parent, top_container);
+
+    cui_widget_init(&app.filter_checkbox, CUI_WIDGET_TYPE_CHECKBOX);
+    cui_widget_set_label(&app.filter_checkbox, CuiStringLiteral("Filter"));
+    cui_widget_set_padding(&app.filter_checkbox, 0.0f, 4.0f, 0.0f, 12.0f);
+    cui_widget_set_inline_padding(&app.filter_checkbox, 8.0f);
+    cui_widget_set_font(&app.filter_checkbox, app.list_view_font);
+
+    app.filter_checkbox.on_action = on_filter_action;
+
+    cui_widget_append_child(top_container, &app.filter_checkbox);
+
+    CuiWidget *left_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+
+    cui_widget_set_main_axis(left_container, CUI_AXIS_X);
+    cui_widget_set_x_axis_gravity(left_container, CUI_GRAVITY_START);
+    cui_widget_set_inline_padding(left_container, 12.0f);
+
+    cui_widget_append_child(top_container, left_container);
+
+    cui_widget_init(&app.open_file_button, CUI_WIDGET_TYPE_BUTTON);
+
+    cui_widget_set_font(&app.open_file_button, app.list_view_font);
+    cui_widget_set_label(&app.open_file_button, CuiStringLiteral("Open File"));
+    cui_widget_set_box_shadow(&app.open_file_button, 0.0f, 0.0f, 0.0f);
+    cui_widget_set_border_width(&app.open_file_button, 1.0f, 1.0f, 1.0f, 1.0f);
+
+    app.open_file_button.on_action = on_open_file_action;
+
+    cui_widget_append_child(left_container, &app.open_file_button);
+
+    cui_widget_init(&app.filter_input, CUI_WIDGET_TYPE_TEXTINPUT);
+
+    cui_widget_set_icon(&app.filter_input, CUI_ICON_SEARCH_12);
+    cui_widget_set_border_radius(&app.filter_input, 2.0f, 2.0f, 2.0f, 2.0f);
+    cui_widget_set_font(&app.filter_input, app.list_view_font);
+    cui_widget_set_label(&app.filter_input, CuiStringLiteral("Filter messages..."));
+    cui_widget_set_textinput_buffer(&app.filter_input, cui_alloc(arena, CuiKiB(1), CuiDefaultAllocationParams()), CuiKiB(1));
+
+    app.filter_input.on_action = on_input_action;
+
+    cui_widget_append_child(left_container, &app.filter_input);
+}
+
+static void
+create_list_view(CuiWidget *parent)
+{
+    cui_widget_init(&app.list_view.base, WIDGET_TYPE_LIST_VIEW);
+    CuiWidgetInitCustomFunctions(&app.list_view.base, list_view_);
+    cui_widget_append_child(parent, &app.list_view.base);
+}
+
+static void
+create_info_panel(CuiWidget *parent, CuiArena *arena)
+{
+    CuiWidget *status_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+
+    cui_widget_set_main_axis(status_container, CUI_AXIS_X);
+    cui_widget_set_y_axis_gravity(status_container, CUI_GRAVITY_START);
+    cui_widget_add_flags(status_container, CUI_WIDGET_FLAG_DRAW_BACKGROUND);
+#if CUI_PLATFORM_MACOS
+    cui_widget_set_padding(status_container, 4.0f, 8.0f, 6.0f, 8.0f);
+#else
+    cui_widget_set_padding(status_container, 4.0f, 8.0f, 4.0f, 8.0f);
+#endif
+    cui_widget_set_inline_padding(status_container, 16.0f);
+
+    status_container->color_normal_background = CUI_COLOR_WINDOW_TITLEBAR_BACKGROUND;
+
+    cui_widget_append_child(parent, status_container);
+
+    // directory
+
+    CuiWidget *directory_label = create_widget(arena, CUI_WIDGET_TYPE_LABEL);
+
+    // cui_widget_set_label(directory_label, app.directory);
+
+    cui_widget_append_child(status_container, directory_label);
+
+    // file count
+
+    CuiWidget *file_count_label = create_widget(arena, CUI_WIDGET_TYPE_LABEL);
+
+    // cui_widget_set_label(file_count_label, cui_sprint(arena, CuiStringLiteral("%d files"), app.file_count));
+
+    cui_widget_append_child(status_container, file_count_label);
+
+    // folder count
+
+    CuiWidget *folder_count_label = create_widget(arena, CUI_WIDGET_TYPE_LABEL);
+
+    // cui_widget_set_label(folder_count_label, cui_sprint(arena, CuiStringLiteral("%d folders"), app.folder_count));
+
+    cui_widget_append_child(status_container, folder_count_label);
+}
+
+static void
+create_user_interface(CuiWindow *window, CuiArena *arena)
+{
+    app.root_widget = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+
+    cui_widget_set_main_axis(app.root_widget, CUI_AXIS_Y);
+    cui_widget_set_y_axis_gravity(app.root_widget, CUI_GRAVITY_START);
+
+    create_top_row(app.root_widget, arena);
+
+    CuiWidget *bottom_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+
+    cui_widget_set_main_axis(bottom_container, CUI_AXIS_Y);
+    cui_widget_set_y_axis_gravity(bottom_container, CUI_GRAVITY_END);
+
+    cui_widget_append_child(app.root_widget, bottom_container);
+
+    // create_info_panel(bottom_container, arena);
+    create_list_view(bottom_container);
+
+    cui_window_set_root_widget(window, app.root_widget);
 }
 
 CUI_PLATFORM_MAIN
