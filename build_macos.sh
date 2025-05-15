@@ -25,6 +25,7 @@ package () {
 
     cp "$2" "$1.app/Contents/MacOS/"
     cp "../src/$2.Info.plist" "$1.app/Contents/Info.plist"
+    iconutil -c icns -o "$1.app/Contents/Resources/wl_sherlock.icns" "wl_sherlock.iconset"
 }
 
 REL_PATH=$(dirname "$0")
@@ -61,6 +62,8 @@ if [ ! -d "${REL_PATH}/build" ]; then
     mkdir "${REL_PATH}/build"
 fi
 
+mkdir -p "${REL_PATH}/build/wl_sherlock.iconset"
+
 cd "${REL_PATH}/build"
 
 if [ "$(uname -m)" = "arm64" ]; then
@@ -81,5 +84,16 @@ elif [ "$(uname -m)" = "x86_64" ]; then
 fi
 
 wait
+
+compile "cp ../icon/icon_512x512@2.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_256x256@2.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_128x128@2.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_32x32@2.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_16x16@2.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_512x512.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_256x256.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_128x128.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_32x32.png wl_sherlock.iconset/"
+compile "cp ../icon/icon_16x16.png wl_sherlock.iconset/"
 
 package "wl_sherlock" "wl_sherlock"

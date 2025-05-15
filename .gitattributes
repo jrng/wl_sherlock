@@ -1,0 +1,2 @@
+*.bat   text eol=crlf
+*.rc    text working-tree-encoding=UTF-16 eol=crlf
