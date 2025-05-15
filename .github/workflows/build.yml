@@ -1,12 +1,18 @@
 name: build
+
 on:
   push:
     branches:
       - main
+  release:
+    types:
+      - published
 
 jobs:
   macos:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout 'cui'
         uses: actions/checkout@v4
@@ -31,8 +37,18 @@ jobs:
         run: |
           cd wl_sherlock
           ./build_macos.sh reldebug
+      - name: Upload artifact to release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd wl_sherlock/build
+          zip -r wl_sherlock-${{ github.event.release.tag_name }}_macos.zip wl_sherlock.app
+          gh release upload ${{ github.event.release.tag_name }} wl_sherlock-${{ github.event.release.tag_name }}_macos.zip
   ubuntu:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Install dependencies
         run: |
@@ -61,8 +77,18 @@ jobs:
         run: |
           cd wl_sherlock
           ./build_linux.sh reldebug
+      - name: Upload artifact to release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd wl_sherlock/build
+          tar czvf wl_sherlock-${{ github.event.release.tag_name }}_linux-x86_64.tar.gz wl_sherlock
+          gh release upload ${{ github.event.release.tag_name }} wl_sherlock-${{ github.event.release.tag_name }}_linux-x86_64.tar.gz
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout 'cui'
         uses: actions/checkout@v4
@@ -91,3 +117,11 @@ jobs:
           cd wl_sherlock
           call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat"
           build_windows.bat reldebug
+      - name: Upload artifact to release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd wl_sherlock//build
+          copy wl_sherlock.exe wl_sherlock-${{ github.event.release.tag_name }}_windows-x86_64.exe
+          gh release upload ${{ github.event.release.tag_name }} wl_sherlock-${{ github.event.release.tag_name }}_windows-x86_64.exe
