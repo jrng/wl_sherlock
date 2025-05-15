@@ -1,4 +1,4 @@
-# wl_sherlock
+**wl_sherlock** is a simple tool to parse, filter and understand wayland protocol logs.
 
 <picture>
   <source srcset="screenshot.png 2x" />
