@@ -213,7 +213,7 @@ normalize_scroll_offset(ScrollOffset offset, int32_t absolute_unit)
 }
 
 static CuiPoint
-update_scroll_handle(CuiWindow *window, ScrollOffset scroll_offset, int32_t scroll_handle_min, int32_t scroll_handle_max,
+update_scroll_handle(ScrollOffset scroll_offset, int32_t scroll_handle_min, int32_t scroll_handle_max,
                      int32_t scroll_handle_min_size, int64_t view_size, int64_t content_size, int64_t absolute_unit)
 {
     CuiPoint result = { 0, 0 }; // those are min and max of the scroll handle
@@ -235,7 +235,7 @@ update_scroll_handle(CuiWindow *window, ScrollOffset scroll_offset, int32_t scro
 }
 
 static CuiPoint
-limit_scroll_offset(CuiWindow *window, ScrollOffset *scroll_offset, int32_t scroll_handle_min, int32_t scroll_handle_max,
+limit_scroll_offset(ScrollOffset *scroll_offset, int32_t scroll_handle_min, int32_t scroll_handle_max,
                     int32_t scroll_handle_min_size, int32_t view_size, int32_t absolute_unit, int32_t count)
 {
     ScrollOffset max_scroll_offset;
@@ -266,7 +266,7 @@ limit_scroll_offset(CuiWindow *window, ScrollOffset *scroll_offset, int32_t scro
     int64_t view_height = (int64_t) view_size;
     int64_t content_height = (int64_t) count * (int64_t) absolute_unit;
 
-    return update_scroll_handle(window, *scroll_offset, scroll_handle_min, scroll_handle_max,
+    return update_scroll_handle(*scroll_offset, scroll_handle_min, scroll_handle_max,
                                 scroll_handle_min_size, view_height, content_height, absolute_unit);
 }
 
@@ -292,7 +292,7 @@ list_view_limit_scroll_offset(ListView *list_view)
     scroll_handle_bound.max.x -= list_view->px2;
 #endif
 
-    CuiPoint scroll_handle = limit_scroll_offset(window, &list_view->scroll_offset, scroll_handle_bound.min.y, scroll_handle_bound.max.y,
+    CuiPoint scroll_handle = limit_scroll_offset(&list_view->scroll_offset, scroll_handle_bound.min.y, scroll_handle_bound.max.y,
                                                  list_view->px16, cui_rect_get_height(list_view->list_rect), row_height, count);
 
     scroll_handle_bound.min.y = scroll_handle.x;
@@ -697,9 +697,6 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
 static void
 graph_view_limit_scroll_offset(GraphView *graph_view)
 {
-    CuiAssert(graph_view->base.window);
-    CuiWindow *window = graph_view->base.window;
-
     int32_t bar_width = graph_view->px4 + graph_view->px1;
 
     int32_t count = app.filter_item_count;
@@ -710,7 +707,7 @@ graph_view_limit_scroll_offset(GraphView *graph_view)
     scroll_handle_bound.max.x -= graph_view->px1;
     scroll_handle_bound.max.y -= graph_view->px1;
 
-    CuiPoint scroll_handle = limit_scroll_offset(window, &graph_view->scroll_offset, scroll_handle_bound.min.x, scroll_handle_bound.max.x,
+    CuiPoint scroll_handle = limit_scroll_offset(&graph_view->scroll_offset, scroll_handle_bound.min.x, scroll_handle_bound.max.x,
                                                  graph_view->px16, cui_rect_get_width(graph_view->graph_rect), bar_width, count);
 
     scroll_handle_bound.min.x = scroll_handle.x;
