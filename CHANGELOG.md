@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add graph view which presents time differences between messages
+
 ### Fixed
 
 - Fix icon being included in windows executable
