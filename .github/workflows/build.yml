@@ -119,6 +119,7 @@ jobs:
           build_windows.bat reldebug
       - name: Upload artifact to release
         if: github.event_name == 'release' && github.event.action == 'published'
+        shell: cmd
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
