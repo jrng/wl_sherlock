@@ -133,6 +133,12 @@ typedef struct
 
 static Application app;
 
+static inline bool
+filter_is_empty(void)
+{
+    return (app.filter.id == 0) && (app.filter.interface_name.count == 0) && (app.filter.message_name.count == 0);
+}
+
 static inline void
 set_default_font_size(void)
 {
@@ -433,10 +439,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     x = list_rect.min.x;
     y = list_rect.min.y - list_view->scroll_offset.fractional_part;
 
-    // TODO: do not check if the filter is empty by checking the text input,
-    // because that will lead to false positives. E.g.: '.'.
-    CuiString filter_value = cui_string_trim(cui_widget_get_textinput_value(&app.filter_input));
-    bool filter = app.filter_checkbox.value || (filter_value.count == 0);
+    bool filter = app.filter_checkbox.value || filter_is_empty();
 
     uint32_t count = app.message_count;
     uint32_t index = list_view->scroll_offset.integer_part;
