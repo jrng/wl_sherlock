@@ -26,6 +26,15 @@ static const CuiColorTheme color_theme = {
     /* default_textinput_normal_icon        */ CuiHexColorLiteral(0xFFB7BAC0),
 };
 
+static const CuiColor blue_background   = CuiHexColorLiteral(0xFF284263);
+static const CuiColor blue_foreground   = CuiHexColorLiteral(0xFF2D89B9);
+// static const CuiColor green_background  = CuiHexColorLiteral(0xFF2C5948);
+static const CuiColor green_foreground  = CuiHexColorLiteral(0xFF33B97B);
+// static const CuiColor red_background    = CuiHexColorLiteral(0xFF4E2630);
+static const CuiColor red_foreground    = CuiHexColorLiteral(0xFFC22630);
+// static const CuiColor yellow_background = CuiHexColorLiteral(0xFF46431F);
+static const CuiColor yellow_foreground = CuiHexColorLiteral(0xFFD5D84D);
+
 typedef struct
 {
     int32_t integer_part;
@@ -483,9 +492,9 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
             if ((filter_index < app.filter_item_count) &&
                 (app.filter_items[filter_index].message_index == index))
             {
-                cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_height), CuiHexColor(0xFF396CA8));
+                cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_height), blue_background);
                 text_color = CuiHexColor(0xFFFFFFFF);
-                character_color = CuiHexColor(0xFF191C28);
+                character_color = blue_foreground;
                 filter_index += 1;
             }
         }
@@ -779,7 +788,7 @@ graph_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme 
     {
         FilterItem *filter_item = app.filter_items + i;
 
-        CuiColor color = CuiHexColor(0xFFFF0000);
+        CuiColor color = red_foreground;
 
         if (filter_item->time_delta < 100) // 0.1 ms
         {
@@ -787,18 +796,24 @@ graph_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme 
         }
         else if (filter_item->time_delta < 9000) // 8.333 ms
         {
-            color = CuiHexColor(0xFF00FFFF);
+            color = blue_foreground;
         }
         else if (filter_item->time_delta < 17000) // 16.666 ms
         {
-            color = CuiHexColor(0xFF50D070);
+            color = green_foreground;
         }
         else if (filter_item->time_delta < 34000) // 33.333 ms
         {
-            color = CuiHexColor(0xFFFFFF00);
+            color = yellow_foreground;
         }
 
-        int32_t height = graph_view->px2 + (view_height * filter_item->time_delta) / 50000;
+        int height = view_height;
+
+        if (filter_item->time_delta <= 50000)
+        {
+            height = graph_view->px1 + (view_height * filter_item->time_delta) / 50000;
+        }
+
         cui_draw_fill_rect(ctx, cui_make_rect(x, rect.max.y - height, x + graph_view->px4, rect.max.y), color);
 
         x += graph_view->px4 + graph_view->px1;
@@ -808,6 +823,18 @@ graph_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme 
             break;
         }
     }
+
+    int32_t fps30_y = rect.max.y - (graph_view->px1 + (view_height * 33333) / 50000);
+    CuiRect fps30_rect = cui_make_rect(rect.min.x, fps30_y - graph_view->px1, rect.max.x, fps30_y);
+    cui_draw_fill_rect(ctx, fps30_rect, CuiHexColor(0x3FC22630));
+
+    int32_t fps60_y = rect.max.y - (graph_view->px1 + (view_height * 16666) / 50000);
+    CuiRect fps60_rect = cui_make_rect(rect.min.x, fps60_y - graph_view->px1, rect.max.x, fps60_y);
+    cui_draw_fill_rect(ctx, fps60_rect, CuiHexColor(0x3FD5D84D));
+
+    int32_t fps120_y = rect.max.y - (graph_view->px1 + (view_height * 8333) / 50000);
+    CuiRect fps120_rect = cui_make_rect(rect.min.x, fps120_y - graph_view->px1, rect.max.x, fps120_y);
+    cui_draw_fill_rect(ctx, fps120_rect, CuiHexColor(0x3F33B97B));
 
     cui_draw_fill_shadow(ctx, rect.min.x, rect.min.y + graph_view->px4, rect.max.x, graph_view->px4, CUI_DIRECTION_SOUTH, color_theme->window_titlebar_background);
 
