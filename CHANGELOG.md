@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-05-19
+
 ### Added
 
 - Add graph view which presents time differences between messages
