@@ -115,6 +115,7 @@ typedef struct
     CuiArena widget_arena;
 
     bool file_loaded;
+    CuiString file_content;
 
     uint32_t message_allocated;
     uint32_t message_count;
@@ -1175,19 +1176,24 @@ load_wayland_file(CuiString wayland_filename)
             app.filter_items = 0;
         }
 
+        if (app.file_content.count > 0)
+        {
+            cui_platform_deallocate(app.file_content.data, app.file_content.count);
+        }
+
         uint64_t file_size = cui_platform_file_get_size(file);
-        char *buffer = (char *) cui_platform_allocate(file_size); // TODO: this is leaked
+        char *buffer = (char *) cui_platform_allocate(file_size);
 
         cui_platform_file_read(file, buffer, 0, file_size);
         cui_platform_file_close(file);
 
-        CuiString content = cui_make_string(buffer, file_size);
+        app.file_content = cui_make_string(buffer, file_size);
 
         uint32_t line_count = 1;
 
-        for (int64_t index = 0; index < content.count; index += 1)
+        for (int64_t index = 0; index < app.file_content.count; index += 1)
         {
-            if (content.data[index] == '\n')
+            if (app.file_content.data[index] == '\n')
             {
                 line_count += 1;
             }
@@ -1206,7 +1212,7 @@ load_wayland_file(CuiString wayland_filename)
 
         uint64_t last_timestamp = 0;
 
-        CuiString cursor = content;
+        CuiString cursor = app.file_content;
 
         while (cursor.count > 0)
         {
