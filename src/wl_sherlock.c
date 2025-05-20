@@ -114,6 +114,8 @@ typedef struct
     CuiArena temporary_memory;
     CuiArena widget_arena;
 
+    bool file_loaded;
+
     uint32_t message_allocated;
     uint32_t message_count;
     Message *messages;
@@ -136,6 +138,8 @@ typedef struct
     CuiWidget open_file_button;
     CuiWidget filter_input;
     CuiWidget filter_checkbox;
+    CuiWidget bottom_container;
+    CuiWidget info_panel;
     ListView list_view;
     GraphView graph_view;
 } Application;
@@ -1152,6 +1156,11 @@ load_wayland_file(CuiString wayland_filename)
 
     if (file)
     {
+        cui_widget_set_textinput_value(&app.filter_input, CuiStringLiteral(""));
+        app.filter.interface_name.count = 0;
+        app.filter.message_name.count = 0;
+        app.filter.id = 0;
+
         if (app.message_allocated)
         {
             cui_platform_deallocate(app.messages, app.message_allocated * sizeof(*app.messages));
@@ -1170,6 +1179,7 @@ load_wayland_file(CuiString wayland_filename)
         char *buffer = (char *) cui_platform_allocate(file_size); // TODO: this is leaked
 
         cui_platform_file_read(file, buffer, 0, file_size);
+        cui_platform_file_close(file);
 
         CuiString content = cui_make_string(buffer, file_size);
 
@@ -1322,8 +1332,19 @@ load_wayland_file(CuiString wayland_filename)
             app.id_character = CuiStringLiteral("#");
         }
 
-        // cui_platform_deallocate(buffer, file_size);
-        cui_platform_file_close(file);
+        if (!app.file_loaded)
+        {
+            if (app.root_widget)
+            {
+                cui_widget_insert_before(&app.bottom_container,
+                                         cui_widget_get_first_child(&app.bottom_container),
+                                         &app.info_panel);
+                cui_widget_layout(&app.bottom_container, app.bottom_container.rect);
+                cui_window_request_redraw(app.window);
+            }
+
+            app.file_loaded = true;
+        }
     }
 }
 
@@ -1344,6 +1365,7 @@ on_open_file_action(CuiWidget *widget)
         {
             load_wayland_file(filenames[0]);
             cui_widget_layout(&app.list_view.base, app.list_view.base.rect);
+            cui_widget_layout(&app.graph_view.base, app.graph_view.base.rect);
         }
     }
 
@@ -1427,27 +1449,30 @@ create_list_view(CuiWidget *parent)
 }
 
 static void
-create_info_panel(CuiWidget *parent, CuiArena *arena)
+create_info_panel(CuiWidget *parent)
 {
-    CuiWidget *container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+    cui_widget_init(&app.info_panel, CUI_WIDGET_TYPE_BOX);
 
-    cui_widget_set_main_axis(container, CUI_AXIS_Y);
-    cui_widget_set_y_axis_gravity(container, CUI_GRAVITY_START);
-    cui_widget_add_flags(container, CUI_WIDGET_FLAG_DRAW_BACKGROUND);
+    cui_widget_set_main_axis(&app.info_panel, CUI_AXIS_Y);
+    cui_widget_set_y_axis_gravity(&app.info_panel, CUI_GRAVITY_START);
+    cui_widget_add_flags(&app.info_panel, CUI_WIDGET_FLAG_DRAW_BACKGROUND);
 #if CUI_PLATFORM_MACOS
-    cui_widget_set_padding(container, 4.0f, 8.0f, 6.0f, 8.0f);
+    cui_widget_set_padding(&app.info_panel, 4.0f, 8.0f, 6.0f, 8.0f);
 #else
-    cui_widget_set_padding(container, 4.0f, 8.0f, 4.0f, 8.0f);
+    cui_widget_set_padding(&app.info_panel, 4.0f, 8.0f, 4.0f, 8.0f);
 #endif
-    cui_widget_set_border_width(container, 1.0f, 0.0f, 0.0f, 0.0f);
+    cui_widget_set_border_width(&app.info_panel, 1.0f, 0.0f, 0.0f, 0.0f);
 
-    container->color_normal_background = CUI_COLOR_WINDOW_TITLEBAR_BACKGROUND;
+    app.info_panel.color_normal_background = CUI_COLOR_WINDOW_TITLEBAR_BACKGROUND;
 
-    cui_widget_append_child(parent, container);
+    if (app.file_loaded)
+    {
+        cui_widget_append_child(parent, &app.info_panel);
+    }
 
     cui_widget_init(&app.graph_view.base, WIDGET_TYPE_GRAPH_VIEW);
     CuiWidgetInitCustomFunctions(&app.graph_view.base, graph_view_);
-    cui_widget_append_child(container, &app.graph_view.base);
+    cui_widget_append_child(&app.info_panel, &app.graph_view.base);
 }
 
 static void
@@ -1460,15 +1485,15 @@ create_user_interface(CuiWindow *window, CuiArena *arena)
 
     create_top_row(app.root_widget, arena);
 
-    CuiWidget *bottom_container = create_widget(arena, CUI_WIDGET_TYPE_BOX);
+    cui_widget_init(&app.bottom_container, CUI_WIDGET_TYPE_BOX);
 
-    cui_widget_set_main_axis(bottom_container, CUI_AXIS_Y);
-    cui_widget_set_y_axis_gravity(bottom_container, CUI_GRAVITY_END);
+    cui_widget_set_main_axis(&app.bottom_container, CUI_AXIS_Y);
+    cui_widget_set_y_axis_gravity(&app.bottom_container, CUI_GRAVITY_END);
 
-    cui_widget_append_child(app.root_widget, bottom_container);
+    cui_widget_append_child(app.root_widget, &app.bottom_container);
 
-    create_info_panel(bottom_container, arena);
-    create_list_view(bottom_container);
+    create_info_panel(&app.bottom_container);
+    create_list_view(&app.bottom_container);
 
     cui_window_set_root_widget(window, app.root_widget);
 }
