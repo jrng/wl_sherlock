@@ -113,6 +113,7 @@ typedef struct
 {
     CuiArena temporary_memory;
     CuiArena widget_arena;
+    CuiArena title_arena;
 
     bool file_loaded;
     CuiString file_content;
@@ -1161,6 +1162,12 @@ load_wayland_file(CuiString wayland_filename)
         app.filter.message_name.count = 0;
         app.filter.id = 0;
 
+        if (app.root_widget)
+        {
+            cui_arena_clear(&app.title_arena);
+            cui_window_set_title(app.window, cui_sprint(&app.title_arena, CuiStringLiteral("wl_sherlock - %S"), wayland_filename));
+        }
+
         if (app.message_allocated)
         {
             cui_platform_deallocate(app.messages, app.message_allocated * sizeof(*app.messages));
@@ -1512,6 +1519,7 @@ CUI_PLATFORM_MAIN
 
     cui_arena_allocate(&app.temporary_memory, CuiMiB(2));
     cui_arena_allocate(&app.widget_arena, CuiMiB(4));
+    cui_arena_allocate(&app.title_arena, CuiKiB(1));
 
     CuiString wayland_filename = { 0 };
 
@@ -1534,7 +1542,16 @@ CUI_PLATFORM_MAIN
 
     app.window = cui_window_create(0);
 
-    cui_window_set_title(app.window, CuiStringLiteral("wl_sherlock"));
+    if (app.file_loaded)
+    {
+        cui_arena_clear(&app.title_arena);
+        cui_window_set_title(app.window, cui_sprint(&app.title_arena, CuiStringLiteral("wl_sherlock - %S"), wayland_filename));
+    }
+    else
+    {
+        cui_window_set_title(app.window, CuiStringLiteral("wl_sherlock"));
+    }
+
     // cui_window_resize(app.window, lroundf(cui_window_get_ui_scale(app.window) * 900),
     //                               lroundf(cui_window_get_ui_scale(app.window) * 700));
 
