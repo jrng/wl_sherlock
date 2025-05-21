@@ -381,15 +381,17 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     CuiColor background_color = CuiHexColorLiteral(0xFF191C28);
 
+    CuiRect list_rect = list_view->list_rect;
+    CuiRect header_rect = list_view->header_rect;
+
     int32_t timestamp_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999.999")));
-    int32_t interface_content_width = lroundf(widget->ui_scale * 230.0f);
+    int32_t interface_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")));
     int32_t id_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999999")));
-    int32_t message_content_width = lroundf(widget->ui_scale * 300.0f);
 
     int32_t timestamp_column_width = timestamp_content_width + 2 * list_view->px8;
     int32_t interface_column_width = interface_content_width + 2 * list_view->px8;
     int32_t id_column_width = id_content_width + 2 * list_view->px8;
-    int32_t message_column_width = message_content_width + 2 * list_view->px8;
+    int32_t message_column_width = cui_rect_get_width(header_rect) - (timestamp_column_width + interface_column_width + id_column_width + 3 * list_view->px1);
 
     int32_t line_height = cui_window_get_font_line_height(widget->window, app.list_view_font);
     float baseline_offset = cui_window_get_font_baseline_offset(widget->window, app.list_view_font);
@@ -397,9 +399,6 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     float header_baseline = (float) list_view->px4 + baseline_offset;
 
     float row_baseline = (float) list_view->px6 + baseline_offset;
-
-    CuiRect list_rect = list_view->list_rect;
-    CuiRect header_rect = list_view->header_rect;
 
     cui_draw_fill_rect(ctx, cui_make_rect(header_rect.min.x, header_rect.min.y, header_rect.max.x, header_rect.max.y - list_view->px1), CuiHexColor(0xFF1E2332));
     cui_draw_fill_rect(ctx, cui_make_rect(header_rect.min.x, header_rect.max.y - list_view->px1, header_rect.max.x, header_rect.max.y), color_theme->default_border);
