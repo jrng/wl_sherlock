@@ -41,6 +41,34 @@ typedef struct
     int32_t fractional_part;
 } ScrollOffset;
 
+typedef enum
+{
+    ARGUMENT_TYPE_NIL     = 0,
+    ARGUMENT_TYPE_INTEGER = 1,
+    ARGUMENT_TYPE_FLOAT   = 2,
+    ARGUMENT_TYPE_FD      = 3,
+    ARGUMENT_TYPE_STRING  = 4,
+    ARGUMENT_TYPE_ARRAY   = 5,
+    ARGUMENT_TYPE_OBJECT  = 6,
+    ARGUMENT_TYPE_NEW_ID  = 7,
+} ArgumentType;
+
+typedef struct
+{
+    ArgumentType type;
+    CuiString interface;
+
+    union
+    {
+        int64_t i;
+        float f;
+        int32_t fd;
+        uint32_t id;
+        uint32_t count;
+        CuiString str;
+    } value;
+} Argument;
+
 typedef struct
 {
     CuiString str;
@@ -1038,7 +1066,7 @@ is_identifier_character(uint32_t c)
     return ((c >= '0') && (c <= '9')) ||
            ((c >= 'a') && (c <= 'z')) ||
            ((c >= 'A') && (c <= 'Z')) ||
-            (c == '_');
+            (c == '_') || (c == '[') || (c == ']');
 }
 
 static inline CuiString
@@ -1054,6 +1082,100 @@ parse_identifier(CuiString *str)
     cui_string_advance(str, result.count);
 
     return result;
+}
+
+static inline bool
+parse_integer(CuiString *str, int64_t *result)
+{
+    int64_t value = 0;
+    int64_t index = 0;
+
+    bool is_signed = false;
+
+    if ((index < str->count) && (str->data[index] == '-'))
+    {
+        is_signed = true;
+        index += 1;
+    }
+
+    if ((index >= str->count) || !cui_unicode_is_digit(str->data[index]))
+    {
+        return false;
+    }
+
+    while ((index < str->count) && cui_unicode_is_digit(str->data[index]))
+    {
+        value = (10 * value) + (str->data[index] - '0');
+        index += 1;
+    }
+
+    if (is_signed)
+    {
+        value = -value;
+    }
+
+    cui_string_advance(str, index);
+    *result = value;
+
+    return true;
+}
+
+static inline bool
+parse_float(CuiString *str, double *result)
+{
+    int64_t integer_value = 0;
+    int64_t index = 0;
+
+    bool is_signed = false;
+
+    if ((index < str->count) && (str->data[index] == '-'))
+    {
+        is_signed = true;
+        index += 1;
+    }
+
+    if ((index >= str->count) || !cui_unicode_is_digit(str->data[index]))
+    {
+        return false;
+    }
+
+    while ((index < str->count) && cui_unicode_is_digit(str->data[index]))
+    {
+        integer_value = (10 * integer_value) + (str->data[index] - '0');
+        index += 1;
+    }
+
+    if ((index >= str->count) || (str->data[index] != '.'))
+    {
+        return false;
+    }
+
+    index += 1;
+
+    if ((index >= str->count) || !cui_unicode_is_digit(str->data[index]))
+    {
+        return false;
+    }
+
+    double value = (double) integer_value;
+    double factor = 1.0 / 10.0;
+
+    while ((index < str->count) && cui_unicode_is_digit(str->data[index]))
+    {
+        value += factor * (double) (str->data[index] - '0');
+        factor /= 10.0;
+        index += 1;
+    }
+
+    if (is_signed)
+    {
+        value = -value;
+    }
+
+    cui_string_advance(str, index);
+    *result = value;
+
+    return true;
 }
 
 static inline bool
@@ -1148,6 +1270,165 @@ on_input_action(CuiWidget *widget)
     app.filter.id = id;
 
     apply_filter();
+}
+
+static bool
+parse_argument(CuiString *str, Argument *argument)
+{
+    if (str->count == 0)
+    {
+        return false;
+    }
+
+    if (cui_unicode_is_digit(str->data[0]) || (str->data[0] == '-'))
+    {
+        double float_value;
+        int64_t integer_value;
+
+        if (parse_float(str, &float_value))
+        {
+            argument->type = ARGUMENT_TYPE_FLOAT;
+            argument->value.f = (float) float_value;
+        }
+        else if (parse_integer(str, &integer_value))
+        {
+            // TODO: check if the values are in range
+            argument->type = ARGUMENT_TYPE_INTEGER;
+            argument->value.i = integer_value;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else if (str->data[0] == '"')
+    {
+        int64_t index = 1;
+        int64_t start_index = index;
+
+        while ((index < str->count) && (str->data[index] != '"'))
+        {
+            index += 1;
+        }
+
+        int64_t end_index = index;
+        CuiString value = cui_make_string(str->data + start_index, end_index - start_index);
+
+        if ((index < str->count) && (str->data[index] == '"'))
+        {
+            index += 1;
+            cui_string_advance(str, index);
+
+            argument->type = ARGUMENT_TYPE_STRING;
+            argument->value.str = value;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else if (cui_string_starts_with(*str, CuiStringLiteral("new id ")))
+    {
+        cui_string_advance(str, CuiStringLiteral("new id ").count);
+
+        CuiString interface = parse_identifier(str);
+
+        if (!cui_string_starts_with(*str, CuiStringLiteral("#")) &&
+            !cui_string_starts_with(*str, CuiStringLiteral("@")))
+        {
+            return false;
+        }
+
+        cui_string_advance(str, 1);
+
+        int64_t new_id;
+
+        if (!parse_integer(str, &new_id) || (new_id <= 0) || (new_id > 0xFFFFFFFF))
+        {
+            return false;
+        }
+
+        argument->type = ARGUMENT_TYPE_NEW_ID;
+        argument->interface = interface;
+        argument->value.id = (uint32_t) new_id;
+    }
+    else if (cui_string_starts_with(*str, CuiStringLiteral("array")))
+    {
+        cui_string_advance(str, CuiStringLiteral("array").count);
+
+        if (!cui_string_starts_with(*str, CuiStringLiteral("[")))
+        {
+            return false;
+        }
+
+        cui_string_advance(str, 1);
+
+        int64_t count;
+
+        if (!parse_integer(str, &count) || (count < 0) || (count > 0xFFFFFFFF))
+        {
+            return false;
+        }
+
+        if (!cui_string_starts_with(*str, CuiStringLiteral("]")))
+        {
+            return false;
+        }
+
+        cui_string_advance(str, 1);
+
+        argument->type = ARGUMENT_TYPE_ARRAY;
+        argument->value.count = (uint32_t) count;
+    }
+    else if (cui_string_starts_with(*str, CuiStringLiteral("fd ")))
+    {
+        cui_string_advance(str, CuiStringLiteral("fd ").count);
+
+        int64_t fd;
+
+        if (!parse_integer(str, &fd) || (fd < (int64_t) 0xFFFFFFFF80000000) || (fd > 0x7FFFFFFF))
+        {
+            return false;
+        }
+
+        argument->type = ARGUMENT_TYPE_FD;
+        argument->value.fd = (int32_t) fd;
+    }
+    else if (cui_string_starts_with(*str, CuiStringLiteral("nil")))
+    {
+        cui_string_advance(str, CuiStringLiteral("nil").count);
+
+        argument->type = ARGUMENT_TYPE_NIL;
+    }
+    else if (is_identifier_character(str->data[0]))
+    {
+        CuiString interface = parse_identifier(str);
+
+        if (!cui_string_starts_with(*str, CuiStringLiteral("#")) &&
+            !cui_string_starts_with(*str, CuiStringLiteral("@")))
+        {
+            return false;
+        }
+
+        cui_string_advance(str, 1);
+
+        int64_t id;
+
+        if (!parse_integer(str, &id) || (id <= 0) || (id > 0xFFFFFFFF))
+        {
+            return false;
+        }
+
+        argument->type = ARGUMENT_TYPE_OBJECT;
+        argument->interface = interface;
+        argument->value.id = (uint32_t) id;
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
 }
 
 static void
@@ -1271,6 +1552,12 @@ load_wayland_file(CuiString wayland_filename)
 
             skip_spaces(&str);
 
+            if (cui_string_starts_with(str, CuiStringLiteral("discarded ")))
+            {
+                cui_string_advance(&str, CuiStringLiteral("discarded ").count);
+                skip_spaces(&str);
+            }
+
             if (cui_string_starts_with(str, CuiStringLiteral("->")))
             {
                 cui_string_advance(&str, CuiStringLiteral("->").count);
@@ -1309,11 +1596,64 @@ load_wayland_file(CuiString wayland_filename)
             uint64_t timestamp = ((uint64_t) timestamp_ms * 1000) + (uint64_t) timestamp_us;
 
             CuiString message_name = parse_identifier(&str);
+            CuiString args = str;
+
+            if (cui_string_starts_with(str, CuiStringLiteral("(")))
+            {
+                cui_string_advance(&str, 1);
+            }
+            else
+            {
+                continue;
+            }
+
+            bool success = true;
+
+            uint32_t argument_count = 0;
+            Argument arguments[10];
+
+            while (success && (str.count > 0) && (str.data[0] != ')'))
+            {
+                if (argument_count >= CuiArrayCount(arguments))
+                {
+                    fprintf(stderr, "error: message has more than %zu arguments.\n", CuiArrayCount(arguments));
+                    success = false;
+                    break;
+                }
+
+                skip_spaces(&str);
+
+                if (!parse_argument(&str, arguments + argument_count))
+                {
+                    success = false;
+                    break;
+                }
+
+                argument_count += 1;
+
+                if (cui_string_starts_with(str, CuiStringLiteral(",")))
+                {
+                    cui_string_advance(&str, 1);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (success && cui_string_starts_with(str, CuiStringLiteral(")")))
+            {
+                cui_string_advance(&str, 1);
+            }
+            else
+            {
+                continue;
+            }
 
             uint32_t message_index = app.message_count;
             app.message_count += 1;
 
-            app.messages[message_index].str = str;
+            app.messages[message_index].str = args;
             app.messages[message_index].connection_name = connection_name;
             app.messages[message_index].queue_name = queue_name;
             app.messages[message_index].interface_name = interface_name;
