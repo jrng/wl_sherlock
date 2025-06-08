@@ -56,7 +56,7 @@ typedef enum
 typedef struct
 {
     ArgumentType type;
-    CuiString interface;
+    CuiString interface_name;
 
     union
     {
@@ -1331,7 +1331,7 @@ parse_argument(CuiString *str, Argument *argument)
     {
         cui_string_advance(str, CuiStringLiteral("new id ").count);
 
-        CuiString interface = parse_identifier(str);
+        CuiString interf = parse_identifier(str);
 
         if (!cui_string_starts_with(*str, CuiStringLiteral("#")) &&
             !cui_string_starts_with(*str, CuiStringLiteral("@")))
@@ -1349,7 +1349,7 @@ parse_argument(CuiString *str, Argument *argument)
         }
 
         argument->type = ARGUMENT_TYPE_NEW_ID;
-        argument->interface = interface;
+        argument->interface_name = interf;
         argument->value.id = (uint32_t) new_id;
     }
     else if (cui_string_starts_with(*str, CuiStringLiteral("array")))
@@ -1402,7 +1402,7 @@ parse_argument(CuiString *str, Argument *argument)
     }
     else if (is_identifier_character(str->data[0]))
     {
-        CuiString interface = parse_identifier(str);
+        CuiString interf = parse_identifier(str);
 
         if (!cui_string_starts_with(*str, CuiStringLiteral("#")) &&
             !cui_string_starts_with(*str, CuiStringLiteral("@")))
@@ -1420,7 +1420,7 @@ parse_argument(CuiString *str, Argument *argument)
         }
 
         argument->type = ARGUMENT_TYPE_OBJECT;
-        argument->interface = interface;
+        argument->interface_name = interf;
         argument->value.id = (uint32_t) id;
     }
     else
