@@ -45,7 +45,7 @@ typedef enum
 {
     ARGUMENT_TYPE_NIL     = 0,
     ARGUMENT_TYPE_INTEGER = 1,
-    ARGUMENT_TYPE_FLOAT   = 2,
+    ARGUMENT_TYPE_FIXED   = 2,
     ARGUMENT_TYPE_FD      = 3,
     ARGUMENT_TYPE_STRING  = 4,
     ARGUMENT_TYPE_ARRAY   = 5,
@@ -61,23 +61,26 @@ typedef struct
     union
     {
         int64_t i;
-        float f;
+        int32_t f;
         int32_t fd;
         uint32_t id;
         uint32_t count;
         CuiString str;
     } value;
+
+    CuiString value_str;
 } Argument;
 
 typedef struct
 {
-    CuiString str;
-
     CuiString connection_name;
     CuiString queue_name;
     CuiString interface_name;
     CuiString message_name;
     uint32_t id;
+
+    uint32_t argument_count;
+    Argument *arguments;
 
     uint64_t timestamp_us;
 } Message;
@@ -145,6 +148,8 @@ typedef struct
 
     bool file_loaded;
     CuiString file_content;
+
+    CuiArena message_arena;
 
     uint32_t message_allocated;
     uint32_t message_count;
@@ -559,13 +564,26 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
         w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("."));
         cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, CuiStringLiteral("."), character_color);
 
-        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, message->message_name, text_color);
         float sub_x = (float) (x + list_view->px8);
-        sub_x += cui_window_get_string_width(widget->window, app.list_view_font, message->message_name);
 
+        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, message->message_name, text_color);
         sub_x += (float) list_view->px2;
 
-        cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, message->str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral("("), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+
+        for (uint32_t i = 0; i < message->argument_count; i += 1)
+        {
+            Argument *argument = message->arguments + i;
+
+            if (i > 0)
+            {
+                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(", "), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+
+            sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+        }
+
+        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(")"), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
 
         y += row_height;
 
@@ -1121,9 +1139,10 @@ parse_integer(CuiString *str, int64_t *result)
 }
 
 static inline bool
-parse_float(CuiString *str, double *result)
+parse_fixed(CuiString *str, int32_t *result)
 {
-    int64_t integer_value = 0;
+    int32_t a = 0;
+    int32_t b = 0;
     int64_t index = 0;
 
     bool is_signed = false;
@@ -1141,7 +1160,7 @@ parse_float(CuiString *str, double *result)
 
     while ((index < str->count) && cui_unicode_is_digit(str->data[index]))
     {
-        integer_value = (10 * integer_value) + (str->data[index] - '0');
+        a = (10 * a) + (str->data[index] - '0');
         index += 1;
     }
 
@@ -1157,23 +1176,23 @@ parse_float(CuiString *str, double *result)
         return false;
     }
 
-    double value = (double) integer_value;
-    double factor = 1.0 / 10.0;
-
+    // TODO: parse exactly 8 digits, extend if needed
     while ((index < str->count) && cui_unicode_is_digit(str->data[index]))
     {
-        value += factor * (double) (str->data[index] - '0');
-        factor /= 10.0;
+        b = (10 * b) + (str->data[index] - '0');
         index += 1;
     }
 
     if (is_signed)
     {
-        value = -value;
+        *result = -(a * 256) - (b / 390625);
+    }
+    else
+    {
+        *result = (a * 256) + (b / 390625);
     }
 
     cui_string_advance(str, index);
-    *result = value;
 
     return true;
 }
@@ -1282,13 +1301,13 @@ parse_argument(CuiString *str, Argument *argument)
 
     if (cui_unicode_is_digit(str->data[0]) || (str->data[0] == '-'))
     {
-        double float_value;
+        int32_t fixed_value;
         int64_t integer_value;
 
-        if (parse_float(str, &float_value))
+        if (parse_fixed(str, &fixed_value))
         {
-            argument->type = ARGUMENT_TYPE_FLOAT;
-            argument->value.f = (float) float_value;
+            argument->type = ARGUMENT_TYPE_FIXED;
+            argument->value.f = fixed_value;
         }
         else if (parse_integer(str, &integer_value))
         {
@@ -1456,6 +1475,11 @@ load_wayland_file(CuiString wayland_filename)
             app.messages = 0;
         }
 
+        if (app.message_arena.capacity)
+        {
+            cui_arena_deallocate(&app.message_arena);
+        }
+
         if (app.filter_item_allocated)
         {
             cui_platform_deallocate(app.filter_items, app.filter_item_allocated * sizeof(*app.filter_items));
@@ -1489,6 +1513,8 @@ load_wayland_file(CuiString wayland_filename)
         app.message_allocated = line_count;
         app.message_count = 0;
         app.messages = (Message *) cui_platform_allocate(app.message_allocated * sizeof(*app.messages));
+
+        cui_arena_allocate(&app.message_arena, app.message_allocated * 512);
 
         app.filter_item_allocated = line_count;
         app.filter_item_count = 0;
@@ -1596,7 +1622,6 @@ load_wayland_file(CuiString wayland_filename)
             uint64_t timestamp = ((uint64_t) timestamp_ms * 1000) + (uint64_t) timestamp_us;
 
             CuiString message_name = parse_identifier(&str);
-            CuiString args = str;
 
             if (cui_string_starts_with(str, CuiStringLiteral("(")))
             {
@@ -1653,13 +1678,91 @@ load_wayland_file(CuiString wayland_filename)
             uint32_t message_index = app.message_count;
             app.message_count += 1;
 
-            app.messages[message_index].str = args;
             app.messages[message_index].connection_name = connection_name;
             app.messages[message_index].queue_name = queue_name;
             app.messages[message_index].interface_name = interface_name;
             app.messages[message_index].id = id;
             app.messages[message_index].message_name = message_name;
             app.messages[message_index].timestamp_us = timestamp;
+
+            app.messages[message_index].argument_count = argument_count;
+            app.messages[message_index].arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+            for (uint32_t i = 0; i < argument_count; i += 1)
+            {
+                Argument *dst = app.messages[message_index].arguments + i;
+                Argument *src = arguments + i;
+
+                dst->type = src->type;
+                dst->interface_name = src->interface_name;
+                dst->value = src->value;
+
+                CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+                CuiStringBuilder string_builder;
+                cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+                switch (dst->type)
+                {
+                    case ARGUMENT_TYPE_NIL:
+                    {
+                        dst->value_str = CuiStringLiteral("nil");
+                    } break;
+
+                    case ARGUMENT_TYPE_INTEGER:
+                    {
+                        cui_string_builder_print(&string_builder, CuiStringLiteral("%ld"), dst->value.i);
+                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+                    } break;
+
+                    case ARGUMENT_TYPE_FIXED:
+                    {
+                        if (dst->value.f >= 0)
+                        {
+                            cui_string_builder_print(&string_builder, CuiStringLiteral("%d.%08u"),
+                                                     (dst->value.f / 256), (uint32_t) (390625 * (dst->value.f % 256)));
+                        }
+                        else
+                        {
+                            cui_string_builder_print(&string_builder, CuiStringLiteral("-%d.%08u"),
+                                                     (dst->value.f / -256), (uint32_t) (-390625 * (dst->value.f % 256)));
+                        }
+                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+                    } break;
+
+                    case ARGUMENT_TYPE_FD:
+                    {
+                        cui_string_builder_print(&string_builder, CuiStringLiteral("fd %d"), dst->value.fd);
+                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+                    } break;
+
+                    case ARGUMENT_TYPE_STRING:
+                    {
+                        cui_string_builder_print(&string_builder, CuiStringLiteral("\"%S\""), dst->value.str);
+                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+                    } break;
+
+                    case ARGUMENT_TYPE_ARRAY:
+                    {
+                        cui_string_builder_print(&string_builder, CuiStringLiteral("array[%u]"), dst->value.count);
+                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+                    } break;
+
+                    case ARGUMENT_TYPE_OBJECT:
+                    {
+                        cui_string_builder_print(&string_builder, CuiStringLiteral("%S#%u"), dst->interface_name, dst->value.id);
+                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+                    } break;
+
+                    case ARGUMENT_TYPE_NEW_ID:
+                    {
+                        cui_string_builder_print(&string_builder, CuiStringLiteral("new id %S#%u"), dst->interface_name, dst->value.id);
+                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+                    } break;
+                }
+
+                cui_end_temporary_memory(temp_memory);
+            }
 
             uint32_t time_delta = 0;
 
