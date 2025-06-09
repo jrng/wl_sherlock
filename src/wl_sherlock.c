@@ -184,13 +184,179 @@ static Application app;
 
 typedef struct
 {
-    CuiString interface_name;
-    CuiString message_name;
     uint32_t argument_count;
     CuiString *arguments;
 } MessageSpec;
 
-#include "message_specs.c"
+typedef void (*MessageFormatFunc)(Message *message, uint32_t argument_count, Argument *arguments, void *data);
+
+typedef struct
+{
+    CuiString interface_name;
+    CuiString message_name;
+    MessageFormatFunc func;
+    void *data;
+} MessageFormatRoutine;
+
+static void
+default_argument_format_func(Argument *dst, Argument *src, CuiString label)
+{
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    switch (dst->type)
+    {
+        case ARGUMENT_TYPE_NIL:
+        {
+            dst->value_str = CuiStringLiteral("nil");
+        } break;
+
+        case ARGUMENT_TYPE_INTEGER:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%ld"), dst->value.i);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+
+        case ARGUMENT_TYPE_FIXED:
+        {
+            if (dst->value.f >= 0)
+            {
+                cui_string_builder_print(&string_builder, CuiStringLiteral("%d.%08u"),
+                                         (dst->value.f / 256), (uint32_t) (390625 * (dst->value.f % 256)));
+            }
+            else
+            {
+                cui_string_builder_print(&string_builder, CuiStringLiteral("-%d.%08u"),
+                                         (dst->value.f / -256), (uint32_t) (-390625 * (dst->value.f % 256)));
+            }
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+
+        case ARGUMENT_TYPE_FD:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("fd %d"), dst->value.fd);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+
+        case ARGUMENT_TYPE_STRING:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("\"%S\""), dst->value.str);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+
+        case ARGUMENT_TYPE_ARRAY:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("array[%u]"), dst->value.count);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+
+        case ARGUMENT_TYPE_OBJECT:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%S#%u"), dst->interface_name, dst->value.id);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+
+        case ARGUMENT_TYPE_NEW_ID:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("new id %S#%u"), dst->interface_name, dst->value.id);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
+drm_format_format_func(Argument *dst, Argument *src, CuiString label)
+{
+    if (src->type != ARGUMENT_TYPE_INTEGER)
+    {
+        default_argument_format_func(dst, src, label);
+        return;
+    }
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    uint32_t drm_format = (uint32_t) dst->value.i;
+
+    switch (drm_format)
+    {
+        case 0x34325241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB8888"); break;
+        case 0x34324241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR8888"); break;
+        case 0x34324152: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBA8888"); break;
+        case 0x34324142: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRA8888"); break;
+
+        default:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("0x%08X"), drm_format);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
+default_message_format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    for (uint32_t i = 0; i < argument_count; i += 1)
+    {
+        default_argument_format_func(message->arguments + i, arguments + i,
+                                     message_spec ? message_spec->arguments[i] : cui_make_string(0, 0));
+    }
+}
+
+static void
+zwp_linux_buffer_params_v1__create_immed__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 5)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    default_argument_format_func(message->arguments + 0, arguments + 0,
+                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 1, arguments + 1,
+                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 2, arguments + 2,
+                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
+
+    drm_format_format_func(message->arguments + 3, arguments + 3,
+                           message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 4, arguments + 4,
+                                 message_spec ? message_spec->arguments[4] : cui_make_string(0, 0));
+}
+
+#include "message_formats.c"
 
 static inline bool
 filter_is_empty(void)
@@ -1725,111 +1891,32 @@ load_wayland_file(CuiString wayland_filename)
             uint32_t message_index = app.message_count;
             app.message_count += 1;
 
-            app.messages[message_index].connection_name = connection_name;
-            app.messages[message_index].queue_name = queue_name;
-            app.messages[message_index].interface_name = interface_name;
-            app.messages[message_index].id = id;
-            app.messages[message_index].message_name = message_name;
-            app.messages[message_index].timestamp_us = timestamp;
-
-            app.messages[message_index].argument_count = argument_count;
-            app.messages[message_index].arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
-
-            for (uint32_t i = 0; i < argument_count; i += 1)
-            {
-                Argument *dst = app.messages[message_index].arguments + i;
-                Argument *src = arguments + i;
-
-                dst->type = src->type;
-                dst->interface_name = src->interface_name;
-                dst->label = cui_make_string(0, 0);
-                dst->value = src->value;
-
-                CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
-
-                CuiStringBuilder string_builder;
-                cui_string_builder_init(&string_builder, &app.temporary_memory);
-
-                switch (dst->type)
-                {
-                    case ARGUMENT_TYPE_NIL:
-                    {
-                        dst->value_str = CuiStringLiteral("nil");
-                    } break;
-
-                    case ARGUMENT_TYPE_INTEGER:
-                    {
-                        cui_string_builder_print(&string_builder, CuiStringLiteral("%ld"), dst->value.i);
-                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
-                    } break;
-
-                    case ARGUMENT_TYPE_FIXED:
-                    {
-                        if (dst->value.f >= 0)
-                        {
-                            cui_string_builder_print(&string_builder, CuiStringLiteral("%d.%08u"),
-                                                     (dst->value.f / 256), (uint32_t) (390625 * (dst->value.f % 256)));
-                        }
-                        else
-                        {
-                            cui_string_builder_print(&string_builder, CuiStringLiteral("-%d.%08u"),
-                                                     (dst->value.f / -256), (uint32_t) (-390625 * (dst->value.f % 256)));
-                        }
-                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
-                    } break;
-
-                    case ARGUMENT_TYPE_FD:
-                    {
-                        cui_string_builder_print(&string_builder, CuiStringLiteral("fd %d"), dst->value.fd);
-                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
-                    } break;
-
-                    case ARGUMENT_TYPE_STRING:
-                    {
-                        cui_string_builder_print(&string_builder, CuiStringLiteral("\"%S\""), dst->value.str);
-                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
-                    } break;
-
-                    case ARGUMENT_TYPE_ARRAY:
-                    {
-                        cui_string_builder_print(&string_builder, CuiStringLiteral("array[%u]"), dst->value.count);
-                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
-                    } break;
-
-                    case ARGUMENT_TYPE_OBJECT:
-                    {
-                        cui_string_builder_print(&string_builder, CuiStringLiteral("%S#%u"), dst->interface_name, dst->value.id);
-                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
-                    } break;
-
-                    case ARGUMENT_TYPE_NEW_ID:
-                    {
-                        cui_string_builder_print(&string_builder, CuiStringLiteral("new id %S#%u"), dst->interface_name, dst->value.id);
-                        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
-                    } break;
-                }
-
-                cui_end_temporary_memory(temp_memory);
-            }
-
             Message *message = app.messages + message_index;
 
-            for (size_t k = 0; k < CuiArrayCount(message_specs); k += 1)
+            message->connection_name = connection_name;
+            message->queue_name = queue_name;
+            message->interface_name = interface_name;
+            message->id = id;
+            message->message_name = message_name;
+            message->timestamp_us = timestamp;
+
+            MessageFormatFunc message_format_func = default_message_format_func;
+            void *message_format_data = 0;
+
+            for (size_t k = 0; k < CuiArrayCount(message_format_routines); k += 1)
             {
-                MessageSpec *message_spec = message_specs + k;
+                MessageFormatRoutine *message_format_routine = message_format_routines + k;
 
-                if (cui_string_equals(interface_name, message_spec->interface_name) &&
-                    cui_string_equals(message_name, message_spec->message_name) &&
-                    (argument_count == message_spec->argument_count))
+                if (cui_string_equals(message->interface_name, message_format_routine->interface_name) &&
+                    cui_string_equals(message->message_name, message_format_routine->message_name))
                 {
-                    for (uint32_t arg_index = 0; arg_index < argument_count; arg_index += 1)
-                    {
-                        message->arguments[arg_index].label = message_spec->arguments[arg_index];
-                    }
-
+                    message_format_func = message_format_routine->func;
+                    message_format_data = message_format_routine->data;
                     break;
                 }
             }
+
+            message_format_func(message, argument_count, arguments, message_format_data);
 
             uint32_t time_delta = 0;
 
