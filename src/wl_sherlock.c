@@ -517,6 +517,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
         }
     }
 
+    float message_x1 = (float) list_rect.max.x - cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(")"));
+
     while (index < count)
     {
         CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
@@ -582,6 +584,34 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
         sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral("("), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
 
+        float width_with_labels = 0.0f;
+
+        for (uint32_t i = 0; i < message->argument_count; i += 1)
+        {
+            Argument *argument = message->arguments + i;
+
+            if (i > 0)
+            {
+                width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(", "));
+            }
+
+            if (argument->label.count)
+            {
+                width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, argument->label);
+                width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(": "));
+            }
+
+            width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, argument->value_str);
+        }
+
+        bool draw_with_labels = false;
+        float remaining_width = message_x1 - sub_x;
+
+        if (width_with_labels <= remaining_width)
+        {
+            draw_with_labels = true;
+        }
+
         for (uint32_t i = 0; i < message->argument_count; i += 1)
         {
             Argument *argument = message->arguments + i;
@@ -591,7 +621,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
                 sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(", "), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
             }
 
-            if (argument->label.count)
+            if (draw_with_labels && argument->label.count)
             {
                 sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->label, text_color);
                 sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(": "), text_color);
