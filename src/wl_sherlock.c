@@ -56,7 +56,6 @@ typedef enum
 typedef struct
 {
     ArgumentType type;
-    CuiString interface_name;
 
     union
     {
@@ -68,6 +67,8 @@ typedef struct
         CuiString str;
     } value;
 
+    CuiString interface_name;
+    CuiString label;
     CuiString value_str;
 } Argument;
 
@@ -180,6 +181,16 @@ typedef struct
 } Application;
 
 static Application app;
+
+typedef struct
+{
+    CuiString interface_name;
+    CuiString message_name;
+    uint32_t argument_count;
+    CuiString *arguments;
+} MessageSpec;
+
+#include "message_specs.c"
 
 static inline bool
 filter_is_empty(void)
@@ -578,6 +589,12 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
             if (i > 0)
             {
                 sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(", "), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+
+            if (argument->label.count)
+            {
+                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->label, text_color);
+                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(": "), text_color);
             }
 
             sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
@@ -1695,6 +1712,7 @@ load_wayland_file(CuiString wayland_filename)
 
                 dst->type = src->type;
                 dst->interface_name = src->interface_name;
+                dst->label = cui_make_string(0, 0);
                 dst->value = src->value;
 
                 CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
@@ -1762,6 +1780,25 @@ load_wayland_file(CuiString wayland_filename)
                 }
 
                 cui_end_temporary_memory(temp_memory);
+            }
+
+            Message *message = app.messages + message_index;
+
+            for (size_t k = 0; k < CuiArrayCount(message_specs); k += 1)
+            {
+                MessageSpec *message_spec = message_specs + k;
+
+                if (cui_string_equals(interface_name, message_spec->interface_name) &&
+                    cui_string_equals(message_name, message_spec->message_name) &&
+                    (argument_count == message_spec->argument_count))
+                {
+                    for (uint32_t arg_index = 0; arg_index < argument_count; arg_index += 1)
+                    {
+                        message->arguments[arg_index].label = message_spec->arguments[arg_index];
+                    }
+
+                    break;
+                }
             }
 
             uint32_t time_delta = 0;
