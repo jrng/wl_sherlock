@@ -274,6 +274,148 @@ default_argument_format_func(Argument *dst, Argument *src, CuiString label)
 }
 
 static void
+wl_shm_format_format_func(Argument *dst, Argument *src, CuiString label)
+{
+    if (src->type != ARGUMENT_TYPE_INTEGER)
+    {
+        default_argument_format_func(dst, src, label);
+        return;
+    }
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    uint32_t format = (uint32_t) dst->value.i;
+
+    switch (format)
+    {
+        case 0: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ARGB8888");                      break;
+        case 1: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XRGB8888");                      break;
+        case 0x20203843: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_C8");                   break;
+        case 0x38424752: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGB332");               break;
+        case 0x38524742: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGR233");               break;
+        case 0x32315258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XRGB4444");             break;
+        case 0x32314258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XBGR4444");             break;
+        case 0x32315852: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBX4444");             break;
+        case 0x32315842: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRX4444");             break;
+        case 0x32315241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ARGB4444");             break;
+        case 0x32314241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ABGR4444");             break;
+        case 0x32314152: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBA4444");             break;
+        case 0x32314142: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRA4444");             break;
+        case 0x35315258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XRGB1555");             break;
+        case 0x35314258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XBGR1555");             break;
+        case 0x35315852: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBX5551");             break;
+        case 0x35315842: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRX5551");             break;
+        case 0x35315241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ARGB1555");             break;
+        case 0x35314241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ABGR1555");             break;
+        case 0x35314152: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBA5551");             break;
+        case 0x35314142: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRA5551");             break;
+        case 0x36314752: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGB565");               break;
+        case 0x36314742: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGR565");               break;
+        case 0x34324752: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGB888");               break;
+        case 0x34324742: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGR888");               break;
+        case 0x34324258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XBGR8888");             break;
+        case 0x34325852: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBX8888");             break;
+        case 0x34325842: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRX8888");             break;
+        case 0x34324241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ABGR8888");             break;
+        case 0x34324152: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBA8888");             break;
+        case 0x34324142: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRA8888");             break;
+        case 0x30335258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XRGB2101010");          break;
+        case 0x30334258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XBGR2101010");          break;
+        case 0x30335852: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBX1010102");          break;
+        case 0x30335842: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRX1010102");          break;
+        case 0x30335241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ARGB2101010");          break;
+        case 0x30334241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ABGR2101010");          break;
+        case 0x30334152: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBA1010102");          break;
+        case 0x30334142: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRA1010102");          break;
+        case 0x56595559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUYV");                 break;
+        case 0x55595659: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YVYU");                 break;
+        case 0x59565955: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_UYVY");                 break;
+        case 0x59555956: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_VYUY");                 break;
+        case 0x56555941: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_AYUV");                 break;
+        case 0x3231564e: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_NV12");                 break;
+        case 0x3132564e: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_NV21");                 break;
+        case 0x3631564e: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_NV16");                 break;
+        case 0x3136564e: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_NV61");                 break;
+        case 0x39565559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUV410");               break;
+        case 0x39555659: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YVU410");               break;
+        case 0x31315559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUV411");               break;
+        case 0x31315659: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YVU411");               break;
+        case 0x32315559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUV420");               break;
+        case 0x32315659: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YVU420");               break;
+        case 0x36315559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUV422");               break;
+        case 0x36315659: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YVU422");               break;
+        case 0x34325559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUV444");               break;
+        case 0x34325659: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YVU444");               break;
+        case 0x20203852: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_R8");                   break;
+        case 0x20363152: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_R16");                  break;
+        case 0x38384752: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RG88");                 break;
+        case 0x38385247: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_GR88");                 break;
+        case 0x32334752: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RG1616");               break;
+        case 0x32335247: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_GR1616");               break;
+        case 0x48345258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XRGB16161616F");        break;
+        case 0x48344258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XBGR16161616F");        break;
+        case 0x48345241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ARGB16161616F");        break;
+        case 0x48344241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ABGR16161616F");        break;
+        case 0x56555958: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XYUV8888");             break;
+        case 0x34325556: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_VUY888");               break;
+        case 0x30335556: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_VUY101010");            break;
+        case 0x30313259: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y210");                 break;
+        case 0x32313259: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y212");                 break;
+        case 0x36313259: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y216");                 break;
+        case 0x30313459: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y410");                 break;
+        case 0x32313459: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y412");                 break;
+        case 0x36313459: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y416");                 break;
+        case 0x30335658: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XVYU2101010");          break;
+        case 0x36335658: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XVYU12_16161616");      break;
+        case 0x38345658: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XVYU16161616");         break;
+        case 0x304c3059: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y0L0");                 break;
+        case 0x304c3058: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_X0L0");                 break;
+        case 0x324c3059: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Y0L2");                 break;
+        case 0x324c3058: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_X0L2");                 break;
+        case 0x38305559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUV420_8BIT");          break;
+        case 0x30315559: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_YUV420_10BIT");         break;
+        case 0x38415258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XRGB8888_A8");          break;
+        case 0x38414258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XBGR8888_A8");          break;
+        case 0x38415852: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGBX8888_A8");          break;
+        case 0x38415842: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGRX8888_A8");          break;
+        case 0x38413852: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGB888_A8");            break;
+        case 0x38413842: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGR888_A8");            break;
+        case 0x38413552: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_RGB565_A8");            break;
+        case 0x38413542: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_BGR565_A8");            break;
+        case 0x3432564e: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_NV24");                 break;
+        case 0x3234564e: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_NV42");                 break;
+        case 0x30313250: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_P210");                 break;
+        case 0x30313050: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_P010");                 break;
+        case 0x32313050: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_P012");                 break;
+        case 0x36313050: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_P016");                 break;
+        case 0x30314241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_AXBXGXRX106106106106"); break;
+        case 0x3531564e: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_NV15");                 break;
+        case 0x30313451: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Q410");                 break;
+        case 0x31303451: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_Q401");                 break;
+        case 0x38345258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XRGB16161616");         break;
+        case 0x38344258: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_XBGR16161616");         break;
+        case 0x38345241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ARGB16161616");         break;
+        case 0x38344241: dst->value_str = CuiStringLiteral("WL_SHM_FORMAT_ABGR16161616");         break;
+
+        default:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%u"), format);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
 drm_format_format_func(Argument *dst, Argument *src, CuiString label)
 {
     if (src->type != ARGUMENT_TYPE_INTEGER)
@@ -296,10 +438,132 @@ drm_format_format_func(Argument *dst, Argument *src, CuiString label)
 
     switch (drm_format)
     {
-        case 0x34325241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB8888"); break;
-        case 0x34324241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR8888"); break;
-        case 0x34324152: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBA8888"); break;
-        case 0x34324142: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRA8888"); break;
+        case 0x00000000: dst->value_str = CuiStringLiteral("DRM_FORMAT_INVALID");              break;
+        case 0x20203143: dst->value_str = CuiStringLiteral("DRM_FORMAT_C1");                   break;
+        case 0x20203243: dst->value_str = CuiStringLiteral("DRM_FORMAT_C2");                   break;
+        case 0x20203443: dst->value_str = CuiStringLiteral("DRM_FORMAT_C4");                   break;
+        case 0x20203843: dst->value_str = CuiStringLiteral("DRM_FORMAT_C8");                   break;
+        case 0x20203144: dst->value_str = CuiStringLiteral("DRM_FORMAT_D1");                   break;
+        case 0x20203244: dst->value_str = CuiStringLiteral("DRM_FORMAT_D2");                   break;
+        case 0x20203444: dst->value_str = CuiStringLiteral("DRM_FORMAT_D4");                   break;
+        case 0x20203844: dst->value_str = CuiStringLiteral("DRM_FORMAT_D8");                   break;
+        case 0x20203152: dst->value_str = CuiStringLiteral("DRM_FORMAT_R1");                   break;
+        case 0x20203252: dst->value_str = CuiStringLiteral("DRM_FORMAT_R2");                   break;
+        case 0x20203452: dst->value_str = CuiStringLiteral("DRM_FORMAT_R4");                   break;
+        case 0x20203852: dst->value_str = CuiStringLiteral("DRM_FORMAT_R8");                   break;
+        case 0x20303152: dst->value_str = CuiStringLiteral("DRM_FORMAT_R10");                  break;
+        case 0x20323152: dst->value_str = CuiStringLiteral("DRM_FORMAT_R12");                  break;
+        case 0x20363152: dst->value_str = CuiStringLiteral("DRM_FORMAT_R16");                  break;
+        case 0x38384752: dst->value_str = CuiStringLiteral("DRM_FORMAT_RG88");                 break;
+        case 0x38385247: dst->value_str = CuiStringLiteral("DRM_FORMAT_GR88");                 break;
+        case 0x32334752: dst->value_str = CuiStringLiteral("DRM_FORMAT_RG1616");               break;
+        case 0x32335247: dst->value_str = CuiStringLiteral("DRM_FORMAT_GR1616");               break;
+        case 0x38424752: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGB332");               break;
+        case 0x38524742: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGR233");               break;
+        case 0x32315258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XRGB4444");             break;
+        case 0x32314258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XBGR4444");             break;
+        case 0x32315852: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBX4444");             break;
+        case 0x32315842: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRX4444");             break;
+        case 0x32315241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB4444");             break;
+        case 0x32314241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR4444");             break;
+        case 0x32314152: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBA4444");             break;
+        case 0x32314142: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRA4444");             break;
+        case 0x35315258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XRGB1555");             break;
+        case 0x35314258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XBGR1555");             break;
+        case 0x35315852: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBX5551");             break;
+        case 0x35315842: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRX5551");             break;
+        case 0x35315241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB1555");             break;
+        case 0x35314241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR1555");             break;
+        case 0x35314152: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBA5551");             break;
+        case 0x35314142: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRA5551");             break;
+        case 0x36314752: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGB565");               break;
+        case 0x36314742: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGR565");               break;
+        case 0x34324752: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGB888");               break;
+        case 0x34324742: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGR888");               break;
+        case 0x34325258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XRGB8888");             break;
+        case 0x34324258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XBGR8888");             break;
+        case 0x34325852: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBX8888");             break;
+        case 0x34325842: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRX8888");             break;
+        case 0x34325241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB8888");             break;
+        case 0x34324241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR8888");             break;
+        case 0x34324152: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBA8888");             break;
+        case 0x34324142: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRA8888");             break;
+        case 0x30335258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XRGB2101010");          break;
+        case 0x30334258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XBGR2101010");          break;
+        case 0x30335852: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBX1010102");          break;
+        case 0x30335842: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRX1010102");          break;
+        case 0x30335241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB2101010");          break;
+        case 0x30334241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR2101010");          break;
+        case 0x30334152: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBA1010102");          break;
+        case 0x30334142: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRA1010102");          break;
+        case 0x38345258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XRGB16161616");         break;
+        case 0x38344258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XBGR16161616");         break;
+        case 0x38345241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB16161616");         break;
+        case 0x38344241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR16161616");         break;
+        case 0x48345258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XRGB16161616F");        break;
+        case 0x48344258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XBGR16161616F");        break;
+        case 0x48345241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ARGB16161616F");        break;
+        case 0x48344241: dst->value_str = CuiStringLiteral("DRM_FORMAT_ABGR16161616F");        break;
+        case 0x30314241: dst->value_str = CuiStringLiteral("DRM_FORMAT_AXBXGXRX106106106106"); break;
+        case 0x56595559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUYV");                 break;
+        case 0x55595659: dst->value_str = CuiStringLiteral("DRM_FORMAT_YVYU");                 break;
+        case 0x59565955: dst->value_str = CuiStringLiteral("DRM_FORMAT_UYVY");                 break;
+        case 0x59555956: dst->value_str = CuiStringLiteral("DRM_FORMAT_VYUY");                 break;
+        case 0x56555941: dst->value_str = CuiStringLiteral("DRM_FORMAT_AYUV");                 break;
+        case 0x59555641: dst->value_str = CuiStringLiteral("DRM_FORMAT_AVUY8888");             break;
+        case 0x56555958: dst->value_str = CuiStringLiteral("DRM_FORMAT_XYUV8888");             break;
+        case 0x59555658: dst->value_str = CuiStringLiteral("DRM_FORMAT_XVUY8888");             break;
+        case 0x34325556: dst->value_str = CuiStringLiteral("DRM_FORMAT_VUY888");               break;
+        case 0x30335556: dst->value_str = CuiStringLiteral("DRM_FORMAT_VUY101010");            break;
+        case 0x30313259: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y210");                 break;
+        case 0x32313259: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y212");                 break;
+        case 0x36313259: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y216");                 break;
+        case 0x30313459: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y410");                 break;
+        case 0x32313459: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y412");                 break;
+        case 0x36313459: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y416");                 break;
+        case 0x30335658: dst->value_str = CuiStringLiteral("DRM_FORMAT_XVYU2101010");          break;
+        case 0x36335658: dst->value_str = CuiStringLiteral("DRM_FORMAT_XVYU12_16161616");      break;
+        case 0x38345658: dst->value_str = CuiStringLiteral("DRM_FORMAT_XVYU16161616");         break;
+        case 0x304C3059: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y0L0");                 break;
+        case 0x304C3058: dst->value_str = CuiStringLiteral("DRM_FORMAT_X0L0");                 break;
+        case 0x324C3059: dst->value_str = CuiStringLiteral("DRM_FORMAT_Y0L2");                 break;
+        case 0x324C3058: dst->value_str = CuiStringLiteral("DRM_FORMAT_X0L2");                 break;
+        case 0x38305559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUV420_8BIT");          break;
+        case 0x30315559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUV420_10BIT");         break;
+        case 0x38415258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XRGB8888_A8");          break;
+        case 0x38414258: dst->value_str = CuiStringLiteral("DRM_FORMAT_XBGR8888_A8");          break;
+        case 0x38415852: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGBX8888_A8");          break;
+        case 0x38415842: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGRX8888_A8");          break;
+        case 0x38413852: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGB888_A8");            break;
+        case 0x38413842: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGR888_A8");            break;
+        case 0x38413552: dst->value_str = CuiStringLiteral("DRM_FORMAT_RGB565_A8");            break;
+        case 0x38413542: dst->value_str = CuiStringLiteral("DRM_FORMAT_BGR565_A8");            break;
+        case 0x3231564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV12");                 break;
+        case 0x3132564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV21");                 break;
+        case 0x3631564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV16");                 break;
+        case 0x3136564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV61");                 break;
+        case 0x3432564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV24");                 break;
+        case 0x3234564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV42");                 break;
+        case 0x3531564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV15");                 break;
+        case 0x3032564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV20");                 break;
+        case 0x3033564E: dst->value_str = CuiStringLiteral("DRM_FORMAT_NV30");                 break;
+        case 0x30313250: dst->value_str = CuiStringLiteral("DRM_FORMAT_P210");                 break;
+        case 0x30313050: dst->value_str = CuiStringLiteral("DRM_FORMAT_P010");                 break;
+        case 0x32313050: dst->value_str = CuiStringLiteral("DRM_FORMAT_P012");                 break;
+        case 0x36313050: dst->value_str = CuiStringLiteral("DRM_FORMAT_P016");                 break;
+        case 0x30333050: dst->value_str = CuiStringLiteral("DRM_FORMAT_P030");                 break;
+        case 0x30313451: dst->value_str = CuiStringLiteral("DRM_FORMAT_Q410");                 break;
+        case 0x31303451: dst->value_str = CuiStringLiteral("DRM_FORMAT_Q401");                 break;
+        case 0x39565559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUV410");               break;
+        case 0x39555659: dst->value_str = CuiStringLiteral("DRM_FORMAT_YVU410");               break;
+        case 0x31315559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUV411");               break;
+        case 0x31315659: dst->value_str = CuiStringLiteral("DRM_FORMAT_YVU411");               break;
+        case 0x32315559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUV420");               break;
+        case 0x32315659: dst->value_str = CuiStringLiteral("DRM_FORMAT_YVU420");               break;
+        case 0x36315559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUV422");               break;
+        case 0x36315659: dst->value_str = CuiStringLiteral("DRM_FORMAT_YVU422");               break;
+        case 0x34325559: dst->value_str = CuiStringLiteral("DRM_FORMAT_YUV444");               break;
+        case 0x34325659: dst->value_str = CuiStringLiteral("DRM_FORMAT_YVU444");               break;
 
         default:
         {
@@ -309,6 +573,116 @@ drm_format_format_func(Argument *dst, Argument *src, CuiString label)
     }
 
     cui_end_temporary_memory(temp_memory);
+}
+
+static bool
+drm_format_modifier_format_func(Argument *dst, Argument *src, CuiString label, CuiString label0, CuiString label1)
+{
+    Argument *dst0 = dst;
+    Argument *dst1 = dst + 1;
+
+    Argument *src0 = src;
+    Argument *src1 = src + 1;
+
+    if ((src0->type != ARGUMENT_TYPE_INTEGER) || (src1->type != ARGUMENT_TYPE_INTEGER))
+    {
+        default_argument_format_func(dst0, src0, label0);
+        default_argument_format_func(dst1, src1, label1);
+        return false;
+    }
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    bool found_modifier = true;
+    uint64_t drm_format_modifier = ((uint64_t) src0->value.i << 32) | (uint64_t) src1->value.i;
+
+    CuiString value_str = cui_make_string(0, 0);
+
+    switch (drm_format_modifier)
+    {
+        case 0x00FFFFFFFFFFFFFF: value_str = CuiStringLiteral("DRM_FORMAT_MOD_INVALID");                          break;
+        case 0x0000000000000000: value_str = CuiStringLiteral("DRM_FORMAT_MOD_LINEAR");                           break;
+        case 0x0100000000000001: value_str = CuiStringLiteral("I915_FORMAT_MOD_X_TILED");                         break;
+        case 0x0100000000000002: value_str = CuiStringLiteral("I915_FORMAT_MOD_Y_TILED");                         break;
+        case 0x0100000000000003: value_str = CuiStringLiteral("I915_FORMAT_MOD_Yf_TILED");                        break;
+        case 0x0100000000000004: value_str = CuiStringLiteral("I915_FORMAT_MOD_Y_TILED_CCS");                     break;
+        case 0x0100000000000005: value_str = CuiStringLiteral("I915_FORMAT_MOD_Yf_TILED_CCS");                    break;
+        case 0x0100000000000006: value_str = CuiStringLiteral("I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS");            break;
+        case 0x0100000000000007: value_str = CuiStringLiteral("I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS");            break;
+        case 0x0100000000000008: value_str = CuiStringLiteral("I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC");         break;
+        case 0x0100000000000009: value_str = CuiStringLiteral("I915_FORMAT_MOD_4_TILED");                         break;
+        case 0x010000000000000A: value_str = CuiStringLiteral("I915_FORMAT_MOD_4_TILED_DG2_RC_CCS");              break;
+        case 0x010000000000000B: value_str = CuiStringLiteral("I915_FORMAT_MOD_4_TILED_DG2_MC_CCS");              break;
+        case 0x010000000000000C: value_str = CuiStringLiteral("I915_FORMAT_MOD_4_TILED_DG2_RC_CCS_CC");           break;
+        case 0x010000000000000D: value_str = CuiStringLiteral("I915_FORMAT_MOD_4_TILED_MTL_RC_CCS");              break;
+        case 0x010000000000000E: value_str = CuiStringLiteral("I915_FORMAT_MOD_4_TILED_MTL_MC_CCS");              break;
+        case 0x010000000000000F: value_str = CuiStringLiteral("I915_FORMAT_MOD_4_TILED_MTL_RC_CCS_CC");           break;
+        case 0x0400000000000001: value_str = CuiStringLiteral("DRM_FORMAT_MOD_SAMSUNG_64_32_TILE");               break;
+        case 0x0400000000000002: value_str = CuiStringLiteral("DRM_FORMAT_MOD_SAMSUNG_16_16_TILE");               break;
+        case 0x0500000000000001: value_str = CuiStringLiteral("DRM_FORMAT_MOD_QCOM_COMPRESSED");                  break;
+        case 0x0500000000000003: value_str = CuiStringLiteral("DRM_FORMAT_MOD_QCOM_TILED3");                      break;
+        case 0x0500000000000002: value_str = CuiStringLiteral("DRM_FORMAT_MOD_QCOM_TILED2");                      break;
+        case 0x0500000000000004: value_str = CuiStringLiteral("DRM_FORMAT_MOD_QCOM_TIGHT");                       break;
+        case 0x0500000000000008: value_str = CuiStringLiteral("DRM_FORMAT_MOD_QCOM_TILE");                        break;
+        case 0x0500000000000010: value_str = CuiStringLiteral("DRM_FORMAT_MOD_QTI_SECURE");                       break;
+        case 0x0600000000000001: value_str = CuiStringLiteral("DRM_FORMAT_MOD_VIVANTE_TILED");                    break;
+        case 0x0600000000000002: value_str = CuiStringLiteral("DRM_FORMAT_MOD_VIVANTE_SUPER_TILED");              break;
+        case 0x0600000000000003: value_str = CuiStringLiteral("DRM_FORMAT_MOD_VIVANTE_SPLIT_TILED");              break;
+        case 0x0600000000000004: value_str = CuiStringLiteral("DRM_FORMAT_MOD_VIVANTE_SPLIT_SUPER_TILED");        break;
+        case 0x0300000000000001: value_str = CuiStringLiteral("DRM_FORMAT_MOD_NVIDIA_TEGRA_TILED");               break;
+        case 0x0300000000000010: value_str = CuiStringLiteral("DRM_FORMAT_MOD_NVIDIA_16BX2_BLOCK_ONE_GOB");       break;
+        case 0x0300000000000011: value_str = CuiStringLiteral("DRM_FORMAT_MOD_NVIDIA_16BX2_BLOCK_TWO_GOB");       break;
+        case 0x0300000000000012: value_str = CuiStringLiteral("DRM_FORMAT_MOD_NVIDIA_16BX2_BLOCK_FOUR_GOB");      break;
+        case 0x0300000000000013: value_str = CuiStringLiteral("DRM_FORMAT_MOD_NVIDIA_16BX2_BLOCK_EIGHT_GOB");     break;
+        case 0x0300000000000014: value_str = CuiStringLiteral("DRM_FORMAT_MOD_NVIDIA_16BX2_BLOCK_SIXTEEN_GOB");   break;
+        case 0x0300000000000015: value_str = CuiStringLiteral("DRM_FORMAT_MOD_NVIDIA_16BX2_BLOCK_THIRTYTWO_GOB"); break;
+        case 0x0700000000000001: value_str = CuiStringLiteral("DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED");             break;
+        case 0x0700000000000002: value_str = CuiStringLiteral("DRM_FORMAT_MOD_BROADCOM_SAND32");                  break;
+        case 0x0700000000000003: value_str = CuiStringLiteral("DRM_FORMAT_MOD_BROADCOM_SAND64");                  break;
+        case 0x0700000000000004: value_str = CuiStringLiteral("DRM_FORMAT_MOD_BROADCOM_SAND128");                 break;
+        case 0x0700000000000005: value_str = CuiStringLiteral("DRM_FORMAT_MOD_BROADCOM_SAND256");                 break;
+        case 0x0700000000000006: value_str = CuiStringLiteral("DRM_FORMAT_MOD_BROADCOM_UIF");                     break;
+        case 0x0810000000000001: value_str = CuiStringLiteral("DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED");    break;
+        case 0x0900000000000001: value_str = CuiStringLiteral("DRM_FORMAT_MOD_ALLWINNER_TILED");                  break;
+
+        default:
+        {
+            found_modifier = false;
+
+            dst0->type = src0->type;
+            dst0->interface_name = src0->interface_name;
+            dst0->label = label0;
+            dst0->value = src0->value;
+
+            cui_string_builder_print(&string_builder, CuiStringLiteral("0x%08X"), (uint32_t) dst0->value.i);
+            dst0->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+
+            dst1->type = src1->type;
+            dst1->interface_name = src1->interface_name;
+            dst1->label = label1;
+            dst1->value = src1->value;
+
+            cui_string_builder_init(&string_builder, &app.temporary_memory);
+            cui_string_builder_print(&string_builder, CuiStringLiteral("0x%08X"), (uint32_t) dst1->value.i);
+            dst1->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+
+    if (found_modifier)
+    {
+        dst0->type = ARGUMENT_TYPE_INTEGER;
+        dst0->interface_name = cui_make_string(0, 0);
+        dst0->label = label;
+        dst0->value.i = 0;
+        dst0->value_str = value_str;
+    }
+
+    return found_modifier;
 }
 
 static void
@@ -324,6 +698,157 @@ default_message_format_func(Message *message, uint32_t argument_count, Argument 
         default_argument_format_func(message->arguments + i, arguments + i,
                                      message_spec ? message_spec->arguments[i] : cui_make_string(0, 0));
     }
+}
+
+static void
+wl_shm__format__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 1)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    wl_shm_format_format_func(message->arguments + 0, arguments + 0,
+                              message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+}
+
+static void
+wl_shm_pool__create_buffer__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 6)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    default_argument_format_func(message->arguments + 0, arguments + 0,
+                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 1, arguments + 1,
+                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 2, arguments + 2,
+                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 3, arguments + 3,
+                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 4, arguments + 4,
+                                 message_spec ? message_spec->arguments[4] : cui_make_string(0, 0));
+
+    wl_shm_format_format_func(message->arguments + 5, arguments + 5,
+                              message_spec ? message_spec->arguments[5] : cui_make_string(0, 0));
+}
+
+static void
+zwp_linux_dmabuf_v1__format__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 1)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    drm_format_format_func(message->arguments + 0, arguments + 0,
+                           message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+}
+
+static void
+zwp_linux_dmabuf_v1__modifier__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 3)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    drm_format_format_func(message->arguments + 0, arguments + 0,
+                           message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+
+    if (drm_format_modifier_format_func(message->arguments + 1, arguments + 1, CuiStringLiteral("modifier"), CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    {
+        message->argument_count -= 1;
+    }
+}
+
+static void
+zwp_linux_buffer_params_v1__add__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 6)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    default_argument_format_func(message->arguments + 0, arguments + 0,
+                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 1, arguments + 1,
+                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 2, arguments + 2,
+                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 3, arguments + 3,
+                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
+
+    if (drm_format_modifier_format_func(message->arguments + 4, arguments + 4, CuiStringLiteral("modifier"), CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    {
+        message->argument_count -= 1;
+    }
+}
+
+static void
+zwp_linux_buffer_params_v1__create__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 4)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    default_argument_format_func(message->arguments + 0, arguments + 0,
+                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 1, arguments + 1,
+                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
+
+    drm_format_format_func(message->arguments + 2, arguments + 2,
+                           message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 3, arguments + 3,
+                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
 }
 
 static void

@@ -20,6 +20,75 @@ static MessageSpec wl_registry__global__spec = {
     .arguments      = wl_registry__global__arguments,
 };
 
+static CuiString wl_shm__format__arguments[] = {
+    { 0, 0 },
+};
+
+static MessageSpec wl_shm__format__spec = {
+    .argument_count = CuiArrayCount(wl_shm__format__arguments),
+    .arguments      = wl_shm__format__arguments,
+};
+
+static CuiString wl_shm_pool__create_buffer__arguments[] = {
+    { 0, 0 },
+    CuiStringConstant("offset"),
+    CuiStringConstant("width"),
+    CuiStringConstant("height"),
+    CuiStringConstant("stride"),
+    CuiStringConstant("format"),
+};
+
+static MessageSpec wl_shm_pool__create_buffer__spec = {
+    .argument_count = CuiArrayCount(wl_shm_pool__create_buffer__arguments),
+    .arguments      = wl_shm_pool__create_buffer__arguments,
+};
+
+static CuiString zwp_linux_dmabuf_v1__format__arguments[] = {
+    { 0, 0 },
+};
+
+static MessageSpec zwp_linux_dmabuf_v1__format__spec = {
+    .argument_count = CuiArrayCount(zwp_linux_dmabuf_v1__format__arguments),
+    .arguments      = zwp_linux_dmabuf_v1__format__arguments,
+};
+
+static CuiString zwp_linux_dmabuf_v1__modifier__arguments[] = {
+    CuiStringConstant("format"),
+    CuiStringConstant("modifier_hi"),
+    CuiStringConstant("modifier_lo"),
+};
+
+static MessageSpec zwp_linux_dmabuf_v1__modifier__spec = {
+    .argument_count = CuiArrayCount(zwp_linux_dmabuf_v1__modifier__arguments),
+    .arguments      = zwp_linux_dmabuf_v1__modifier__arguments,
+};
+
+static CuiString zwp_linux_buffer_params_v1__add__arguments[] = {
+    { 0, 0 },
+    CuiStringConstant("plane_idx"),
+    CuiStringConstant("offset"),
+    CuiStringConstant("stride"),
+    CuiStringConstant("modifier_hi"),
+    CuiStringConstant("modifier_lo"),
+};
+
+static MessageSpec zwp_linux_buffer_params_v1__add__spec = {
+    .argument_count = CuiArrayCount(zwp_linux_buffer_params_v1__add__arguments),
+    .arguments      = zwp_linux_buffer_params_v1__add__arguments,
+};
+
+static CuiString zwp_linux_buffer_params_v1__create__arguments[] = {
+    CuiStringConstant("width"),
+    CuiStringConstant("height"),
+    CuiStringConstant("format"),
+    CuiStringConstant("flags"),
+};
+
+static MessageSpec zwp_linux_buffer_params_v1__create__spec = {
+    .argument_count = CuiArrayCount(zwp_linux_buffer_params_v1__create__arguments),
+    .arguments      = zwp_linux_buffer_params_v1__create__arguments,
+};
+
 static CuiString zwp_linux_buffer_params_v1__create_immed__arguments[] = {
     { 0, 0 },
     CuiStringConstant("width"),
@@ -48,6 +117,42 @@ static MessageFormatRoutine message_format_routines[] = {
         .message_name   = CuiStringConstant("global"),
         .func           = default_message_format_func,
         .data           = &wl_registry__global__spec,
+    },
+    {
+        .interface_name = CuiStringConstant("wl_shm"),
+        .message_name   = CuiStringConstant("format"),
+        .func           = wl_shm__format__format_func,
+        .data           = &wl_shm__format__spec,
+    },
+    {
+        .interface_name = CuiStringConstant("wl_shm_pool"),
+        .message_name   = CuiStringConstant("create_buffer"),
+        .func           = wl_shm_pool__create_buffer__format_func,
+        .data           = &wl_shm_pool__create_buffer__spec,
+    },
+    {
+        .interface_name = CuiStringConstant("zwp_linux_dmabuf_v1"),
+        .message_name   = CuiStringConstant("format"),
+        .func           = zwp_linux_dmabuf_v1__format__format_func,
+        .data           = &zwp_linux_dmabuf_v1__format__spec,
+    },
+    {
+        .interface_name = CuiStringConstant("zwp_linux_dmabuf_v1"),
+        .message_name   = CuiStringConstant("modifier"),
+        .func           = zwp_linux_dmabuf_v1__modifier__format_func,
+        .data           = &zwp_linux_dmabuf_v1__modifier__spec,
+    },
+    {
+        .interface_name = CuiStringConstant("zwp_linux_buffer_params_v1"),
+        .message_name   = CuiStringConstant("add"),
+        .func           = zwp_linux_buffer_params_v1__add__format_func,
+        .data           = &zwp_linux_buffer_params_v1__add__spec,
+    },
+    {
+        .interface_name = CuiStringConstant("zwp_linux_buffer_params_v1"),
+        .message_name   = CuiStringConstant("create"),
+        .func           = zwp_linux_buffer_params_v1__create__format_func,
+        .data           = &zwp_linux_buffer_params_v1__create__spec,
     },
     {
         .interface_name = CuiStringConstant("zwp_linux_buffer_params_v1"),
