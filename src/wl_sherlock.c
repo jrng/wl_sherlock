@@ -80,6 +80,8 @@ typedef struct
     CuiString message_name;
     uint32_t id;
 
+    bool sent;
+
     uint32_t argument_count;
     Argument *arguments;
 
@@ -2322,8 +2324,11 @@ load_wayland_file(CuiString wayland_filename)
                 skip_spaces(&str);
             }
 
+            bool sent = false;
+
             if (cui_string_starts_with(str, CuiStringLiteral("->")))
             {
+                sent = true;
                 cui_string_advance(&str, CuiStringLiteral("->").count);
                 skip_spaces(&str);
             }
@@ -2422,6 +2427,7 @@ load_wayland_file(CuiString wayland_filename)
             message->queue_name = queue_name;
             message->interface_name = interface_name;
             message->id = id;
+            message->sent = sent;
             message->message_name = message_name;
             message->timestamp_us = timestamp;
 
