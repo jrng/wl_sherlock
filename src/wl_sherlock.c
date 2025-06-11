@@ -100,6 +100,8 @@ typedef struct
     int32_t px12;
     int32_t px16;
 
+    bool is_filtered;
+
     ScrollOffset scroll_offset;
 
     CuiRect list_rect;
@@ -163,6 +165,7 @@ typedef struct
     FilterItem *filter_items;
 
     Filter filter;
+    uint32_t filter_item_index;
 
     CuiString id_character;
 
@@ -1039,7 +1042,7 @@ list_view_limit_scroll_offset(ListView *list_view)
 
     int32_t count = app.message_count;
 
-    if (app.filter_checkbox.value)
+    if (list_view->is_filtered)
     {
         count = app.filter_item_count;
     }
@@ -1190,7 +1193,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     x = list_rect.min.x;
     y = list_rect.min.y - list_view->scroll_offset.fractional_part;
 
-    bool filter = app.filter_checkbox.value || filter_is_empty();
+    bool filter = list_view->is_filtered || filter_is_empty();
 
     uint32_t count = app.message_count;
     uint32_t index = list_view->scroll_offset.integer_part;
@@ -1359,9 +1362,8 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
             if (list_view->scrolling)
             {
                 int32_t count;
-                bool filter = app.filter_checkbox.value;
 
-                if (filter)
+                if (list_view->is_filtered)
                 {
                     count = app.filter_item_count;
                 }
@@ -1809,6 +1811,34 @@ apply_filter(void)
     graph_view_limit_scroll_offset(&app.graph_view);
 }
 
+static void
+scroll_to_next_filtered_item(ListView *list_view)
+{
+    if (!list_view->is_filtered)
+    {
+        uint32_t message_index = 0;
+
+        if (app.filter_item_count > 0)
+        {
+            app.filter_item_index += 1;
+
+            if (app.filter_item_index >= app.filter_item_count)
+            {
+                app.filter_item_index = 0;
+            }
+
+            message_index = app.filter_items[app.filter_item_index].message_index;
+        }
+
+        ScrollOffset scroll_offset;
+        scroll_offset.integer_part = message_index - 2;
+        scroll_offset.fractional_part = 0;
+
+        list_view->scroll_offset = scroll_offset;
+        list_view_limit_scroll_offset(list_view);
+    }
+}
+
 static inline void
 skip_spaces(CuiString *str)
 {
@@ -1997,6 +2027,10 @@ on_filter_action(CuiWidget *widget)
     CuiAssert(widget->window);
     CuiWindow *window = widget->window;
 
+    app.list_view.is_filtered = app.filter_checkbox.value ? true : false;
+
+    app.filter_item_index = app.filter_item_count;
+    scroll_to_next_filtered_item(&app.list_view);
     list_view_limit_scroll_offset(&app.list_view);
 
     cui_window_request_redraw(window);
@@ -2029,6 +2063,19 @@ on_input_action(CuiWidget *widget)
     app.filter.id = id;
 
     apply_filter();
+
+    app.filter_item_index = app.filter_item_count;
+    scroll_to_next_filtered_item(&app.list_view);
+}
+
+static void
+on_input_changed(CuiWidget *widget)
+{
+    CuiAssert(widget->window);
+    CuiWindow *window = widget->window;
+
+    scroll_to_next_filtered_item(&app.list_view);
+    cui_window_request_redraw(window);
 }
 
 static bool
@@ -2576,6 +2623,7 @@ create_top_row(CuiWidget *parent, CuiArena *arena)
     cui_widget_set_textinput_buffer(&app.filter_input, cui_alloc(arena, CuiKiB(1), CuiDefaultAllocationParams()), CuiKiB(1));
 
     app.filter_input.on_action = on_input_action;
+    app.filter_input.on_changed = on_input_changed;
 
     cui_widget_append_child(left_container, &app.filter_input);
 }
