@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=wl_sherlock
+Comment=Wayland Log Analyzer
+Categories=Utility;Development;
+Exec=wl_sherlock %f
+Icon=icon_512x512@2.svg
