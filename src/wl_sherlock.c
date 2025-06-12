@@ -28,12 +28,15 @@ static const CuiColorTheme color_theme = {
 
 static const CuiColor blue_background   = CuiHexColorLiteral(0xFF284263);
 static const CuiColor blue_foreground   = CuiHexColorLiteral(0xFF2D89B9);
-// static const CuiColor green_background  = CuiHexColorLiteral(0xFF2C5948);
+static const CuiColor green_background  = CuiHexColorLiteral(0xFF2C5948);
 static const CuiColor green_foreground  = CuiHexColorLiteral(0xFF33B97B);
 // static const CuiColor red_background    = CuiHexColorLiteral(0xFF4E2630);
 static const CuiColor red_foreground    = CuiHexColorLiteral(0xFFC22630);
 // static const CuiColor yellow_background = CuiHexColorLiteral(0xFF46431F);
 static const CuiColor yellow_foreground = CuiHexColorLiteral(0xFFD5D84D);
+static const CuiColor pink_background   = CuiHexColorLiteral(0xFF391A3E);
+// static const CuiColor pink_foreground   = CuiHexColorLiteral(0xFFAF3CC3);
+static const CuiColor pink_foreground   = CuiHexColorLiteral(0xFFC344D9);
 
 typedef struct
 {
@@ -1125,6 +1128,9 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     CuiRect list_rect = list_view->list_rect;
     CuiRect header_rect = list_view->header_rect;
 
+    int32_t space_w = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(" ")));
+    int32_t type_rect_w = (int32_t) ceilf(widget->ui_scale * app.font_size);
+
     int32_t timestamp_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999.999")));
     int32_t interface_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")));
     int32_t id_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999999")));
@@ -1273,7 +1279,27 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
         w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("."));
         cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, CuiStringLiteral("."), character_color);
 
-        float sub_x = (float) (x + list_view->px8);
+        x += space_w;
+
+        int32_t type_rect_y = y + (row_height - type_rect_w) / 2;
+        CuiRect type_rect = cui_make_rect(x, type_rect_y, x + type_rect_w, type_rect_y + type_rect_w);
+
+        if (message->sent)
+        {
+            cui_draw_fill_rounded_rect_1(ctx, type_rect, (float) list_view->px2, pink_background);
+            w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("R"));
+            cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) type_rect_w - w), (float) y + row_baseline, CuiStringLiteral("R"), pink_foreground);
+        }
+        else
+        {
+            cui_draw_fill_rounded_rect_1(ctx, type_rect, (float) list_view->px2, green_background);
+            w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("E"));
+            cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) type_rect_w - w), (float) y + row_baseline, CuiStringLiteral("E"), green_foreground);
+        }
+
+        x += type_rect_w + space_w;
+
+        float sub_x = (float) x;
 
         sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, message->message_name, text_color);
         sub_x += (float) list_view->px2;

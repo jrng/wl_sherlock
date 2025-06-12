@@ -8,6 +8,7 @@
 - Add custom formating for message arguments
 - Add descriptive labels to a handful of message arguments
 - Add jumping to and cycling through filter items if not filtered
+- Add indicator for requests and events
 
 ## [0.2.0] - 2025-05-19
 
