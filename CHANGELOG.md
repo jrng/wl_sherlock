@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-06-16
+
 ### Added
 
 - Add filename in window title
