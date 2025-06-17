@@ -694,6 +694,72 @@ drm_format_modifier_format_func(Argument *dst, Argument *src, CuiString label, C
 }
 
 static void
+wayland_buffer_backend_format_format_func(Argument *dst, Argument *src, CuiString label)
+{
+    if (src->type != ARGUMENT_TYPE_INTEGER)
+    {
+        default_argument_format_func(dst, src, label);
+        return;
+    }
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    uint32_t format = (uint32_t) dst->value.i;
+
+    // The wayland_buffer_backend protocol extension is a proprietary
+    // wayland extension by qualcomm. There is no public reference for
+    // the format ids passed over the messages of this protocol.
+    // The pixel formats for these numbers are found by passing different
+    // VK_FORMAT_* values to vkCreateSwapchainKHR and having a look at
+    // the id getting passed to the create_buffer message in the wayland logs.
+    // These are the results:
+    //   VK_FORMAT_R5G6B5_UNORM_PACK16      -> 5
+    //   VK_FORMAT_R8G8B8_SRGB              -> 7
+    //   VK_FORMAT_R8G8B8_UNORM             -> 7
+    //   VK_FORMAT_B8G8R8A8_UNORM           -> 8 (VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
+    //   VK_FORMAT_R8G8B8A8_UNORM           -> 9 (VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
+    //   VK_FORMAT_B8G8R8A8_UNORM           -> 10 (VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
+    //   VK_FORMAT_B8G8R8A8_SRGB            -> 10
+    //   VK_FORMAT_R8G8B8A8_UNORM           -> 11 (VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
+    //   VK_FORMAT_R8G8B8A8_SRGB            -> 11
+    //   VK_FORMAT_A2B10G10R10_UNORM_PACK32 -> 13
+    //   VK_FORMAT_G8_B8R8_2PLANE_420_UNORM -> 14
+    //   VK_FORMAT_B8G8R8G8_422_UNORM       -> 16
+    //   VK_FORMAT_B5G6R5_UNORM_PACK16      -> 17
+
+    switch (format)
+    {
+        case 5:  dst->value_str = CuiStringLiteral("5 ~ DRM_FORMAT_RGB565");       break;
+        case 7:  dst->value_str = CuiStringLiteral("7 ~ DRM_FORMAT_BGR888");       break;
+        case 8:  dst->value_str = CuiStringLiteral("8 ~ DRM_FORMAT_XRGB8888");     break;
+        case 9:  dst->value_str = CuiStringLiteral("9 ~ DRM_FORMAT_XBGR8888");     break;
+        case 10: dst->value_str = CuiStringLiteral("10 ~ DRM_FORMAT_ARGB8888");    break;
+        case 11: dst->value_str = CuiStringLiteral("11 ~ DRM_FORMAT_ABGR8888");    break;
+        case 12: dst->value_str = CuiStringLiteral("12 ???"); break;
+        case 13: dst->value_str = CuiStringLiteral("13 ~ DRM_FORMAT_ABGR2101010"); break;
+        case 14: dst->value_str = CuiStringLiteral("14 ??? (VK_FORMAT_G8_B8R8_2PLANE_420_UNORM)"); break;
+        case 16: dst->value_str = CuiStringLiteral("16 ??? (VK_FORMAT_B8G8R8G8_422_UNORM)"); break;
+        case 17: dst->value_str = CuiStringLiteral("17 ~ DRM_FORMAT_BGR565");      break;
+
+        default:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%u"), format);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
 default_message_format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
 {
     MessageSpec *message_spec = (MessageSpec *) data;
@@ -794,7 +860,8 @@ zwp_linux_dmabuf_v1__modifier__format_func(Message *message, uint32_t argument_c
     drm_format_format_func(message->arguments + 0, arguments + 0,
                            message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
 
-    if (drm_format_modifier_format_func(message->arguments + 1, arguments + 1, CuiStringLiteral("modifier"), CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    if (drm_format_modifier_format_func(message->arguments + 1, arguments + 1, CuiStringLiteral("modifier"),
+                                        CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
     {
         message->argument_count -= 1;
     }
@@ -826,7 +893,8 @@ zwp_linux_buffer_params_v1__add__format_func(Message *message, uint32_t argument
     default_argument_format_func(message->arguments + 3, arguments + 3,
                                  message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
 
-    if (drm_format_modifier_format_func(message->arguments + 4, arguments + 4, CuiStringLiteral("modifier"), CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    if (drm_format_modifier_format_func(message->arguments + 4, arguments + 4, CuiStringLiteral("modifier"),
+                                        CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
     {
         message->argument_count -= 1;
     }
@@ -887,6 +955,60 @@ zwp_linux_buffer_params_v1__create_immed__format_func(Message *message, uint32_t
 
     default_argument_format_func(message->arguments + 4, arguments + 4,
                                  message_spec ? message_spec->arguments[4] : cui_make_string(0, 0));
+}
+
+static void
+wayland_buffer_backend__format__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 1)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    wayland_buffer_backend_format_format_func(message->arguments + 0, arguments + 0,
+                                              message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+}
+
+static void
+wayland_buffer_backend__create_buffer__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+{
+    if (argument_count != 7)
+    {
+        default_message_format_func(message, argument_count, arguments, data);
+        return;
+    }
+
+    MessageSpec *message_spec = (MessageSpec *) data;
+
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    default_argument_format_func(message->arguments + 0, arguments + 0,
+                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 1, arguments + 1,
+                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 2, arguments + 2,
+                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 3, arguments + 3,
+                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 4, arguments + 4,
+                                 message_spec ? message_spec->arguments[4] : cui_make_string(0, 0));
+
+    wayland_buffer_backend_format_format_func(message->arguments + 5, arguments + 5,
+                                              message_spec ? message_spec->arguments[5] : cui_make_string(0, 0));
+
+    default_argument_format_func(message->arguments + 6, arguments + 6,
+                                 message_spec ? message_spec->arguments[6] : cui_make_string(0, 0));
 }
 
 #include "message_formats.c"
