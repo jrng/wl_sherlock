@@ -2466,6 +2466,15 @@ load_wayland_file(CuiString wayland_filename)
         {
             CuiString str = cui_string_trim(cui_string_get_next_line(&cursor));
 
+            int64_t index = 0;
+
+            while ((index < str.count) && (str.data[index] != '['))
+            {
+                index += 1;
+            }
+
+            cui_string_advance(&str, index);
+
             if ((str.count < 1) || (str.data[0] != '[') || (str.data[str.count - 1] != ')'))
             {
                 continue;
