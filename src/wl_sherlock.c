@@ -190,24 +190,63 @@ typedef struct
 
 static Application app;
 
+typedef void (*ArgumentFormatFunc)(Argument *dst, Argument *src, CuiString label);
+
 typedef struct
 {
-    uint32_t argument_count;
-    CuiString *arguments;
-} MessageSpec;
+    ArgumentType type;
+    CuiString label;
+    ArgumentFormatFunc format_func;
+} ArgumentSpec;
 
-typedef void (*MessageFormatFunc)(Message *message, uint32_t argument_count, Argument *arguments, void *data);
+typedef struct MessageSpec MessageSpec;
 
-typedef struct
+typedef void (*MessageFormatFunc)(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec);
+
+struct MessageSpec
 {
     CuiString interface_name;
     CuiString message_name;
-    MessageFormatFunc func;
-    void *data;
-} MessageFormatRoutine;
+    MessageFormatFunc message_format_func;
+    uint32_t argument_count;
+    ArgumentSpec *arguments;
+};
+
+static inline bool
+message_matches_signature(uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
+{
+    if (argument_count != message_spec->argument_count)
+    {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < message_spec->argument_count; i += 1)
+    {
+        ArgumentSpec *argument_spec = message_spec->arguments + i;
+
+        CuiAssert(argument_spec->type != ARGUMENT_TYPE_NIL);
+
+        if (arguments[i].type == argument_spec->type)
+        {
+            continue;
+        }
+
+        // TODO: ARGUMENT_TYPE_NEW_ID can also be nil
+        if (((argument_spec->type == ARGUMENT_TYPE_STRING) ||
+             (argument_spec->type == ARGUMENT_TYPE_OBJECT)) &&
+             (argument_spec->type == ARGUMENT_TYPE_NIL))
+        {
+            continue;
+        }
+
+        return false;
+    }
+
+    return true;
+}
 
 static void
-default_argument_format_func(Argument *dst, Argument *src, CuiString label)
+format_argument(Argument *dst, Argument *src, CuiString label)
 {
     dst->type = src->type;
     dst->interface_name = src->interface_name;
@@ -282,13 +321,9 @@ default_argument_format_func(Argument *dst, Argument *src, CuiString label)
 }
 
 static void
-wl_shm_format_format_func(Argument *dst, Argument *src, CuiString label)
+wl_shm_format_format(Argument *dst, Argument *src, CuiString label)
 {
-    if (src->type != ARGUMENT_TYPE_INTEGER)
-    {
-        default_argument_format_func(dst, src, label);
-        return;
-    }
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
 
     dst->type = src->type;
     dst->interface_name = src->interface_name;
@@ -424,13 +459,9 @@ wl_shm_format_format_func(Argument *dst, Argument *src, CuiString label)
 }
 
 static void
-drm_format_format_func(Argument *dst, Argument *src, CuiString label)
+drm_format_format(Argument *dst, Argument *src, CuiString label)
 {
-    if (src->type != ARGUMENT_TYPE_INTEGER)
-    {
-        default_argument_format_func(dst, src, label);
-        return;
-    }
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
 
     dst->type = src->type;
     dst->interface_name = src->interface_name;
@@ -584,7 +615,7 @@ drm_format_format_func(Argument *dst, Argument *src, CuiString label)
 }
 
 static bool
-drm_format_modifier_format_func(Argument *dst, Argument *src, CuiString label, CuiString label0, CuiString label1)
+drm_format_modifier_format(Argument *dst, Argument *src, CuiString label, CuiString label0, CuiString label1)
 {
     Argument *dst0 = dst;
     Argument *dst1 = dst + 1;
@@ -592,12 +623,7 @@ drm_format_modifier_format_func(Argument *dst, Argument *src, CuiString label, C
     Argument *src0 = src;
     Argument *src1 = src + 1;
 
-    if ((src0->type != ARGUMENT_TYPE_INTEGER) || (src1->type != ARGUMENT_TYPE_INTEGER))
-    {
-        default_argument_format_func(dst0, src0, label0);
-        default_argument_format_func(dst1, src1, label1);
-        return false;
-    }
+    CuiAssert((src0->type == ARGUMENT_TYPE_INTEGER) && (src1->type == ARGUMENT_TYPE_INTEGER));
 
     CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
 
@@ -694,13 +720,9 @@ drm_format_modifier_format_func(Argument *dst, Argument *src, CuiString label, C
 }
 
 static void
-wayland_buffer_backend_format_format_func(Argument *dst, Argument *src, CuiString label)
+wayland_buffer_backend_format_format(Argument *dst, Argument *src, CuiString label)
 {
-    if (src->type != ARGUMENT_TYPE_INTEGER)
-    {
-        default_argument_format_func(dst, src, label);
-        return;
-    }
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
 
     dst->type = src->type;
     dst->interface_name = src->interface_name;
@@ -760,255 +782,71 @@ wayland_buffer_backend_format_format_func(Argument *dst, Argument *src, CuiStrin
 }
 
 static void
-default_message_format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+format_message(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
 {
-    MessageSpec *message_spec = (MessageSpec *) data;
+    CuiAssert(argument_count == message_spec->argument_count);
 
     message->argument_count = argument_count;
     message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
 
     for (uint32_t i = 0; i < argument_count; i += 1)
     {
-        default_argument_format_func(message->arguments + i, arguments + i,
-                                     message_spec ? message_spec->arguments[i] : cui_make_string(0, 0));
+        ArgumentSpec *argument_spec = message_spec->arguments + i;
+
+        if (argument_spec->format_func)
+        {
+            argument_spec->format_func(message->arguments + i, arguments + i, argument_spec->label);
+        }
+        else
+        {
+            format_argument(message->arguments + i, arguments + i, argument_spec->label);
+        }
     }
 }
 
 static void
-wl_shm__format__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+format_message_without_spec(Message *message, uint32_t argument_count, Argument *arguments)
 {
-    if (argument_count != 1)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
     message->argument_count = argument_count;
     message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
 
-    wl_shm_format_format_func(message->arguments + 0, arguments + 0,
-                              message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+    for (uint32_t i = 0; i < argument_count; i += 1)
+    {
+        format_argument(message->arguments + i, arguments + i, cui_make_string(0, 0));
+    }
 }
 
 static void
-wl_shm_pool__create_buffer__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+zwp_linux_dmabuf_v1__modifier__format_func(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
 {
-    if (argument_count != 6)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
     message->argument_count = argument_count;
     message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
 
-    default_argument_format_func(message->arguments + 0, arguments + 0,
-                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+    drm_format_format(message->arguments + 0, arguments + 0, message_spec->arguments[0].label);
 
-    default_argument_format_func(message->arguments + 1, arguments + 1,
-                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 2, arguments + 2,
-                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 3, arguments + 3,
-                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 4, arguments + 4,
-                                 message_spec ? message_spec->arguments[4] : cui_make_string(0, 0));
-
-    wl_shm_format_format_func(message->arguments + 5, arguments + 5,
-                              message_spec ? message_spec->arguments[5] : cui_make_string(0, 0));
-}
-
-static void
-zwp_linux_dmabuf_v1__format__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
-{
-    if (argument_count != 1)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
-    message->argument_count = argument_count;
-    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
-
-    drm_format_format_func(message->arguments + 0, arguments + 0,
-                           message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
-}
-
-static void
-zwp_linux_dmabuf_v1__modifier__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
-{
-    if (argument_count != 3)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
-    message->argument_count = argument_count;
-    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
-
-    drm_format_format_func(message->arguments + 0, arguments + 0,
-                           message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
-
-    if (drm_format_modifier_format_func(message->arguments + 1, arguments + 1, CuiStringLiteral("modifier"),
-                                        CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    if (drm_format_modifier_format(message->arguments + 1, arguments + 1, CuiStringLiteral("modifier"),
+                                   CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
     {
         message->argument_count -= 1;
     }
 }
 
 static void
-zwp_linux_buffer_params_v1__add__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
+zwp_linux_buffer_params_v1__add__format_func(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
 {
-    if (argument_count != 6)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
     message->argument_count = argument_count;
     message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
 
-    default_argument_format_func(message->arguments + 0, arguments + 0,
-                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
+    format_argument(message->arguments + 0, arguments + 0, message_spec->arguments[0].label);
+    format_argument(message->arguments + 1, arguments + 1, message_spec->arguments[1].label);
+    format_argument(message->arguments + 2, arguments + 2, message_spec->arguments[2].label);
+    format_argument(message->arguments + 3, arguments + 3, message_spec->arguments[3].label);
 
-    default_argument_format_func(message->arguments + 1, arguments + 1,
-                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 2, arguments + 2,
-                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 3, arguments + 3,
-                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
-
-    if (drm_format_modifier_format_func(message->arguments + 4, arguments + 4, CuiStringLiteral("modifier"),
-                                        CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    if (drm_format_modifier_format(message->arguments + 4, arguments + 4, CuiStringLiteral("modifier"),
+                                   CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
     {
         message->argument_count -= 1;
     }
-}
-
-static void
-zwp_linux_buffer_params_v1__create__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
-{
-    if (argument_count != 4)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
-    message->argument_count = argument_count;
-    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
-
-    default_argument_format_func(message->arguments + 0, arguments + 0,
-                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 1, arguments + 1,
-                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
-
-    drm_format_format_func(message->arguments + 2, arguments + 2,
-                           message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 3, arguments + 3,
-                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
-}
-
-static void
-zwp_linux_buffer_params_v1__create_immed__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
-{
-    if (argument_count != 5)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
-    message->argument_count = argument_count;
-    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
-
-    default_argument_format_func(message->arguments + 0, arguments + 0,
-                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 1, arguments + 1,
-                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 2, arguments + 2,
-                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
-
-    drm_format_format_func(message->arguments + 3, arguments + 3,
-                           message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 4, arguments + 4,
-                                 message_spec ? message_spec->arguments[4] : cui_make_string(0, 0));
-}
-
-static void
-wayland_buffer_backend__format__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
-{
-    if (argument_count != 1)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
-    message->argument_count = argument_count;
-    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
-
-    wayland_buffer_backend_format_format_func(message->arguments + 0, arguments + 0,
-                                              message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
-}
-
-static void
-wayland_buffer_backend__create_buffer__format_func(Message *message, uint32_t argument_count, Argument *arguments, void *data)
-{
-    if (argument_count != 7)
-    {
-        default_message_format_func(message, argument_count, arguments, data);
-        return;
-    }
-
-    MessageSpec *message_spec = (MessageSpec *) data;
-
-    message->argument_count = argument_count;
-    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
-
-    default_argument_format_func(message->arguments + 0, arguments + 0,
-                                 message_spec ? message_spec->arguments[0] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 1, arguments + 1,
-                                 message_spec ? message_spec->arguments[1] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 2, arguments + 2,
-                                 message_spec ? message_spec->arguments[2] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 3, arguments + 3,
-                                 message_spec ? message_spec->arguments[3] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 4, arguments + 4,
-                                 message_spec ? message_spec->arguments[4] : cui_make_string(0, 0));
-
-    wayland_buffer_backend_format_format_func(message->arguments + 5, arguments + 5,
-                                              message_spec ? message_spec->arguments[5] : cui_make_string(0, 0));
-
-    default_argument_format_func(message->arguments + 6, arguments + 6,
-                                 message_spec ? message_spec->arguments[6] : cui_make_string(0, 0));
 }
 
 #include "message_formats.c"
@@ -2582,7 +2420,7 @@ load_wayland_file(CuiString wayland_filename)
             bool success = true;
 
             uint32_t argument_count = 0;
-            Argument arguments[10];
+            Argument arguments[16];
 
             while (success && (str.count > 0) && (str.data[0] != ')'))
             {
@@ -2635,23 +2473,35 @@ load_wayland_file(CuiString wayland_filename)
             message->message_name = message_name;
             message->timestamp_us = timestamp;
 
-            MessageFormatFunc message_format_func = default_message_format_func;
-            void *message_format_data = 0;
+            MessageSpec *message_spec = 0;
 
-            for (size_t k = 0; k < CuiArrayCount(message_format_routines); k += 1)
+            for (size_t k = 0; k < CuiArrayCount(message_specs); k += 1)
             {
-                MessageFormatRoutine *message_format_routine = message_format_routines + k;
+                MessageSpec *msg_spec = message_specs + k;
 
-                if (cui_string_equals(message->interface_name, message_format_routine->interface_name) &&
-                    cui_string_equals(message->message_name, message_format_routine->message_name))
+                if (cui_string_equals(message->interface_name, msg_spec->interface_name) &&
+                    cui_string_equals(message->message_name, msg_spec->message_name))
                 {
-                    message_format_func = message_format_routine->func;
-                    message_format_data = message_format_routine->data;
+                    message_spec = msg_spec;
                     break;
                 }
             }
 
-            message_format_func(message, argument_count, arguments, message_format_data);
+            if (message_spec && message_matches_signature(argument_count, arguments, message_spec))
+            {
+                if (message_spec->message_format_func)
+                {
+                    message_spec->message_format_func(message, argument_count, arguments, message_spec);
+                }
+                else
+                {
+                    format_message(message, argument_count, arguments, message_spec);
+                }
+            }
+            else
+            {
+                format_message_without_spec(message, argument_count, arguments);
+            }
 
             uint32_t time_delta = 0;
 
