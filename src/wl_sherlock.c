@@ -1208,13 +1208,13 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     if (!list_view->is_filtered)
     {
-        uint32_t message_index;
+        uint32_t message_index = 0;
 
         if (list_view->show_non_wayland_messages)
         {
             message_index = index;
         }
-        else
+        else if (index < app.wayland_message_count)
         {
             message_index = app.wayland_messages[index];
         }
