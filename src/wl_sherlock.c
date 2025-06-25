@@ -38,6 +38,8 @@ static const CuiColor pink_background   = CuiHexColorLiteral(0xFF391A3E);
 // static const CuiColor pink_foreground   = CuiHexColorLiteral(0xFFAF3CC3);
 static const CuiColor pink_foreground   = CuiHexColorLiteral(0xFFC344D9);
 
+static const int32_t SCROLL_ROW_OFFSET = 2;
+
 typedef struct
 {
     int32_t integer_part;
@@ -75,8 +77,15 @@ typedef struct
     CuiString value_str;
 } Argument;
 
+typedef enum
+{
+    MESSAGE_TYPE_PLAIN   = 0,
+    MESSAGE_TYPE_WAYLAND = 1,
+} MessageType;
+
 typedef struct
 {
+    MessageType type;
     CuiString connection_name;
     CuiString queue_name;
     CuiString interface_name;
@@ -104,6 +113,7 @@ typedef struct
     int32_t px16;
 
     bool is_filtered;
+    bool show_non_wayland_messages;
 
     ScrollOffset scroll_offset;
 
@@ -163,12 +173,20 @@ typedef struct
     uint32_t message_count;
     Message *messages;
 
-    uint32_t filter_item_allocated;
-    uint32_t filter_item_count;
-    FilterItem *filter_items;
+    uint32_t wayland_message_allocated;
+    uint32_t wayland_message_count;
+    uint32_t *wayland_messages;
+
+    uint32_t filtered_message_allocated;
+    uint32_t filtered_message_count;
+    uint32_t *filtered_messages;
+
+    uint32_t filtered_wayland_message_allocated;
+    uint32_t filtered_wayland_message_count;
+    FilterItem *filtered_wayland_messages;
 
     Filter filter;
-    uint32_t filter_item_index;
+    uint32_t filtered_item_index;
 
     CuiString id_character;
 
@@ -182,6 +200,7 @@ typedef struct
     CuiWidget open_file_button;
     CuiWidget filter_input;
     CuiWidget filter_checkbox;
+    CuiWidget non_wayland_messages_checkbox;
     CuiWidget bottom_container;
     CuiWidget info_panel;
     ListView list_view;
@@ -857,6 +876,33 @@ filter_is_empty(void)
     return (app.filter.id == 0) && (app.filter.interface_name.count == 0) && (app.filter.message_name.count == 0);
 }
 
+static inline int32_t
+get_item_count(ListView *list_view)
+{
+    if (list_view->is_filtered)
+    {
+        if (list_view->show_non_wayland_messages)
+        {
+            return app.filtered_message_count;
+        }
+        else
+        {
+            return app.filtered_wayland_message_count;
+        }
+    }
+    else
+    {
+        if (list_view->show_non_wayland_messages)
+        {
+            return app.message_count;
+        }
+        else
+        {
+            return app.wayland_message_count;
+        }
+    }
+}
+
 static inline void
 set_default_font_size(void)
 {
@@ -1003,12 +1049,7 @@ list_view_limit_scroll_offset(ListView *list_view)
     int32_t line_height = cui_window_get_font_line_height(window, app.list_view_font);
     int32_t row_height = line_height + 2 * list_view->px6 + list_view->px1;
 
-    int32_t count = app.message_count;
-
-    if (list_view->is_filtered)
-    {
-        count = app.filter_item_count;
-    }
+    int32_t count = get_item_count(list_view);
 
     CuiRect scroll_handle_bound = list_view->scroll_bar_rect;
     scroll_handle_bound.min.x += list_view->px2;
@@ -1159,23 +1200,29 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     x = list_rect.min.x;
     y = list_rect.min.y - list_view->scroll_offset.fractional_part;
 
-    bool filter = list_view->is_filtered || filter_is_empty();
-
-    uint32_t count = app.message_count;
+    uint32_t count = get_item_count(list_view);
     uint32_t index = list_view->scroll_offset.integer_part;
-    uint32_t filter_index = 0;
+    uint32_t filtered_index = 0;
 
-    if (filter)
+    bool is_empty = filter_is_empty();
+
+    if (!list_view->is_filtered)
     {
-        count = app.filter_item_count;
-    }
-    else
-    {
-        // TODO: binary search
-        while ((filter_index < app.filter_item_count) &&
-               (app.filter_items[filter_index].message_index < index))
+        uint32_t message_index;
+
+        if (list_view->show_non_wayland_messages)
         {
-            filter_index += 1;
+            message_index = index;
+        }
+        else
+        {
+            message_index = app.wayland_messages[index];
+        }
+
+        while ((filtered_index < app.filtered_wayland_message_count) &&
+               (app.filtered_wayland_messages[filtered_index].message_index < message_index))
+        {
+            filtered_index += 1;
         }
     }
 
@@ -1192,127 +1239,156 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
         Message *message;
 
-        if (filter)
+        if (list_view->is_filtered)
         {
-            FilterItem *filter_item = app.filter_items + index;
-            CuiAssert(filter_item->message_index < app.message_count);
-            message = app.messages + filter_item->message_index;
+            if (list_view->show_non_wayland_messages)
+            {
+                message = app.messages + app.filtered_messages[index];
+            }
+            else
+            {
+                message = app.messages + app.filtered_wayland_messages[index].message_index;
+            }
         }
         else
         {
-            message = app.messages + index;
+            uint32_t message_index;
 
-            if ((filter_index < app.filter_item_count) &&
-                (app.filter_items[filter_index].message_index == index))
+            if (list_view->show_non_wayland_messages)
             {
-                cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_height), blue_background);
-                text_color = CuiHexColor(0xFFFFFFFF);
-                character_color = blue_foreground;
-                filter_index += 1;
+                message_index = index;
+            }
+            else
+            {
+                message_index = app.wayland_messages[index];
+            }
+
+            message = app.messages + message_index;
+
+            if ((filtered_index < app.filtered_wayland_message_count) &&
+                (app.filtered_wayland_messages[filtered_index].message_index == message_index))
+            {
+                if (!is_empty)
+                {
+                    cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_height), blue_background);
+                    text_color = CuiHexColor(0xFFFFFFFF);
+                    character_color = blue_foreground;
+                }
+
+                filtered_index += 1;
             }
         }
 
-        CuiString timestamp_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u.%03u"), (uint32_t) (message->timestamp_us / 1000), (uint32_t) (message->timestamp_us % 1000));
-
-        w = cui_window_get_string_width(widget->window, app.list_view_font, timestamp_str);
-        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) timestamp_content_width - w), (float) y + row_baseline, timestamp_str, text_color);
-        x += timestamp_column_width;
-
-        x += list_view->px1;
-
-        w = cui_window_get_string_width(widget->window, app.list_view_font, message->interface_name);
-        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) interface_content_width - w), (float) y + row_baseline, message->interface_name, text_color);
-        x += interface_column_width;
-
-        x += list_view->px1;
-
-        w = cui_window_get_string_width(widget->window, app.list_view_font, app.id_character);
-        cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, app.id_character, character_color);
-
-        CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), message->id);
-
-        cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, id_str, text_color);
-        x += id_column_width;
-
-        x += list_view->px1;
-
-        w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("."));
-        cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, CuiStringLiteral("."), character_color);
-
-        x += space_w;
-
-        int32_t type_rect_y = y + (row_height - type_rect_w) / 2;
-        CuiRect type_rect = cui_make_rect(x, type_rect_y, x + type_rect_w, type_rect_y + type_rect_w);
-
-        if (message->sent)
+        if (message->type == MESSAGE_TYPE_WAYLAND)
         {
-            cui_draw_fill_rounded_rect_1(ctx, type_rect, (float) list_view->px2, pink_background);
-            w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("R"));
-            cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) type_rect_w - w), (float) y + row_baseline, CuiStringLiteral("R"), pink_foreground);
+            CuiString timestamp_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u.%03u"), (uint32_t) (message->timestamp_us / 1000), (uint32_t) (message->timestamp_us % 1000));
+
+            w = cui_window_get_string_width(widget->window, app.list_view_font, timestamp_str);
+            cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) timestamp_content_width - w), (float) y + row_baseline, timestamp_str, text_color);
+            x += timestamp_column_width;
+
+            x += list_view->px1;
+
+            w = cui_window_get_string_width(widget->window, app.list_view_font, message->interface_name);
+            cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) interface_content_width - w), (float) y + row_baseline, message->interface_name, text_color);
+            x += interface_column_width;
+
+            x += list_view->px1;
+
+            w = cui_window_get_string_width(widget->window, app.list_view_font, app.id_character);
+            cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, app.id_character, character_color);
+
+            CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), message->id);
+
+            cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, id_str, text_color);
+            x += id_column_width;
+
+            x += list_view->px1;
+
+            w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("."));
+            cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, CuiStringLiteral("."), character_color);
+
+            x += space_w;
+
+            int32_t type_rect_y = y + (row_height - type_rect_w) / 2;
+            CuiRect type_rect = cui_make_rect(x, type_rect_y, x + type_rect_w, type_rect_y + type_rect_w);
+
+            if (message->sent)
+            {
+                cui_draw_fill_rounded_rect_1(ctx, type_rect, (float) list_view->px2, pink_background);
+                w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("R"));
+                cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) type_rect_w - w), (float) y + row_baseline, CuiStringLiteral("R"), pink_foreground);
+            }
+            else
+            {
+                cui_draw_fill_rounded_rect_1(ctx, type_rect, (float) list_view->px2, green_background);
+                w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("E"));
+                cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) type_rect_w - w), (float) y + row_baseline, CuiStringLiteral("E"), green_foreground);
+            }
+
+            x += type_rect_w + space_w;
+
+            float sub_x = (float) x;
+
+            sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, message->message_name, text_color);
+            sub_x += (float) list_view->px2;
+
+            sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral("("), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+
+            float width_with_labels = 0.0f;
+
+            for (uint32_t i = 0; i < message->argument_count; i += 1)
+            {
+                Argument *argument = message->arguments + i;
+
+                if (i > 0)
+                {
+                    width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(", "));
+                }
+
+                if (argument->label.count)
+                {
+                    width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, argument->label);
+                    width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(": "));
+                }
+
+                width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, argument->value_str);
+            }
+
+            bool draw_with_labels = false;
+            float remaining_width = message_x1 - sub_x;
+
+            if (width_with_labels <= remaining_width)
+            {
+                draw_with_labels = true;
+            }
+
+            for (uint32_t i = 0; i < message->argument_count; i += 1)
+            {
+                Argument *argument = message->arguments + i;
+
+                if (i > 0)
+                {
+                    sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(", "), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+                }
+
+                if (draw_with_labels && argument->label.count)
+                {
+                    sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->label, text_color);
+                    sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(": "), text_color);
+                }
+
+                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+
+            sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(")"), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
         }
         else
         {
-            cui_draw_fill_rounded_rect_1(ctx, type_rect, (float) list_view->px2, green_background);
-            w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("E"));
-            cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) type_rect_w - w), (float) y + row_baseline, CuiStringLiteral("E"), green_foreground);
+            CuiAssert(message->type == MESSAGE_TYPE_PLAIN);
+            cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, message->message_name, character_color);
+            // cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, message->message_name, color_theme->window_outline);
         }
-
-        x += type_rect_w + space_w;
-
-        float sub_x = (float) x;
-
-        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, message->message_name, text_color);
-        sub_x += (float) list_view->px2;
-
-        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral("("), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
-
-        float width_with_labels = 0.0f;
-
-        for (uint32_t i = 0; i < message->argument_count; i += 1)
-        {
-            Argument *argument = message->arguments + i;
-
-            if (i > 0)
-            {
-                width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(", "));
-            }
-
-            if (argument->label.count)
-            {
-                width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, argument->label);
-                width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(": "));
-            }
-
-            width_with_labels += cui_window_get_string_width(widget->window, app.list_view_font, argument->value_str);
-        }
-
-        bool draw_with_labels = false;
-        float remaining_width = message_x1 - sub_x;
-
-        if (width_with_labels <= remaining_width)
-        {
-            draw_with_labels = true;
-        }
-
-        for (uint32_t i = 0; i < message->argument_count; i += 1)
-        {
-            Argument *argument = message->arguments + i;
-
-            if (i > 0)
-            {
-                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(", "), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
-            }
-
-            if (draw_with_labels && argument->label.count)
-            {
-                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->label, text_color);
-                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(": "), text_color);
-            }
-
-            sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
-        }
-
-        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(")"), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
 
         y += row_height;
 
@@ -1347,16 +1423,7 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
         {
             if (list_view->scrolling)
             {
-                int32_t count;
-
-                if (list_view->is_filtered)
-                {
-                    count = app.filter_item_count;
-                }
-                else
-                {
-                    count = app.message_count;
-                }
+                int32_t count = get_item_count(list_view);
 
                 int32_t line_height = cui_window_get_font_line_height(window, app.list_view_font);
                 int32_t row_height = line_height + 2 * list_view->px6 + list_view->px1;
@@ -1490,7 +1557,7 @@ graph_view_limit_scroll_offset(GraphView *graph_view)
 {
     int32_t bar_width = graph_view->px4 + graph_view->px1;
 
-    int32_t count = app.filter_item_count;
+    int32_t count = app.filtered_wayland_message_count;
 
     CuiRect scroll_handle_bound = graph_view->scroll_bar_rect;
     scroll_handle_bound.min.x += graph_view->px1;
@@ -1563,9 +1630,9 @@ graph_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme 
 
     int32_t x = rect.min.x;
 
-    for (uint32_t i = graph_view->scroll_offset.integer_part + 1; i < app.filter_item_count; i += 1)
+    for (uint32_t i = graph_view->scroll_offset.integer_part + 1; i < app.filtered_wayland_message_count; i += 1)
     {
-        FilterItem *filter_item = app.filter_items + i;
+        FilterItem *filter_item = app.filtered_wayland_messages + i;
 
         CuiColor color = red_foreground;
 
@@ -1644,7 +1711,7 @@ graph_view_handle_event(CuiWidget *widget, CuiEventType event_type)
         {
             if (graph_view->scrolling)
             {
-                int32_t count = app.filter_item_count;
+                int32_t count = app.filtered_wayland_message_count;
 
                 int32_t bar_width = graph_view->px4 + graph_view->px1;
 
@@ -1753,48 +1820,61 @@ graph_view_handle_event(CuiWidget *widget, CuiEventType event_type)
 static void
 apply_filter(void)
 {
-    app.filter_item_count = 0;
+    app.filtered_message_count = 0;
+    app.filtered_wayland_message_count = 0;
 
     for (uint32_t message_index = 0; message_index < app.message_count; message_index += 1)
     {
         Message *message = app.messages + message_index;
 
-        // TODO: change to contains
-        if ((app.filter.interface_name.count > 0) && !cui_string_starts_with(message->interface_name, app.filter.interface_name))
+        if (message->type == MESSAGE_TYPE_WAYLAND)
         {
-            continue;
-        }
-
-        // TODO: change to contains
-        if ((app.filter.message_name.count > 0) && !cui_string_starts_with(message->message_name, app.filter.message_name))
-        {
-            continue;
-        }
-
-        if ((app.filter.id > 0) && (message->id != app.filter.id))
-        {
-            continue;
-        }
-
-        uint32_t time_delta = 0;
-
-        if (app.filter_item_count > 0)
-        {
-            Message *prev_message = app.messages + app.filter_items[app.filter_item_count - 1].message_index;
-
-            if (message->timestamp_us > prev_message->timestamp_us)
+            // TODO: change to contains
+            if ((app.filter.interface_name.count > 0) && !cui_string_starts_with(message->interface_name, app.filter.interface_name))
             {
-                time_delta = (uint32_t) (message->timestamp_us - prev_message->timestamp_us);
+                continue;
             }
+
+            // TODO: change to contains
+            if ((app.filter.message_name.count > 0) && !cui_string_starts_with(message->message_name, app.filter.message_name))
+            {
+                continue;
+            }
+
+            if ((app.filter.id > 0) && (message->id != app.filter.id))
+            {
+                continue;
+            }
+
+            uint32_t time_delta = 0;
+
+            if (app.filtered_wayland_message_count > 0)
+            {
+                Message *prev_message = app.messages + app.filtered_wayland_messages[app.filtered_wayland_message_count - 1].message_index;
+
+                CuiAssert(prev_message->type == MESSAGE_TYPE_WAYLAND);
+
+                if (message->timestamp_us > prev_message->timestamp_us)
+                {
+                    time_delta = (uint32_t) (message->timestamp_us - prev_message->timestamp_us);
+                }
+            }
+
+            app.filtered_wayland_messages[app.filtered_wayland_message_count].message_index = message_index;
+            app.filtered_wayland_messages[app.filtered_wayland_message_count].time_delta = time_delta;
+            app.filtered_wayland_message_count += 1;
+
+            app.filtered_messages[app.filtered_message_count] = message_index;
+            app.filtered_message_count += 1;
         }
+        else
+        {
+            CuiAssert(message->type == MESSAGE_TYPE_PLAIN);
 
-        app.filter_items[app.filter_item_count].message_index = message_index;
-        app.filter_items[app.filter_item_count].time_delta = time_delta;
-        app.filter_item_count += 1;
+            app.filtered_messages[app.filtered_message_count] = message_index;
+            app.filtered_message_count += 1;
+        }
     }
-
-    list_view_limit_scroll_offset(&app.list_view);
-    graph_view_limit_scroll_offset(&app.graph_view);
 }
 
 static void
@@ -1802,23 +1882,35 @@ scroll_to_next_filtered_item(ListView *list_view)
 {
     if (!list_view->is_filtered)
     {
-        uint32_t message_index = 0;
+        ScrollOffset scroll_offset = { 0, 0 };
 
-        if (app.filter_item_count > 0)
+        if (app.filtered_wayland_message_count > 0)
         {
-            app.filter_item_index += 1;
+            app.filtered_item_index += 1;
 
-            if (app.filter_item_index >= app.filter_item_count)
+            if (app.filtered_item_index >= app.filtered_wayland_message_count)
             {
-                app.filter_item_index = 0;
+                app.filtered_item_index = 0;
             }
 
-            message_index = app.filter_items[app.filter_item_index].message_index;
-        }
+            uint32_t message_index = app.filtered_wayland_messages[app.filtered_item_index].message_index;
 
-        ScrollOffset scroll_offset;
-        scroll_offset.integer_part = message_index - 2;
-        scroll_offset.fractional_part = 0;
+            if (list_view->show_non_wayland_messages)
+            {
+                scroll_offset.integer_part = message_index - SCROLL_ROW_OFFSET;
+            }
+            else
+            {
+                for (uint32_t i = 0; i < app.wayland_message_count; i += 1)
+                {
+                    if (app.wayland_messages[i] == message_index)
+                    {
+                        scroll_offset.integer_part = i - SCROLL_ROW_OFFSET;
+                        break;
+                    }
+                }
+            }
+        }
 
         list_view->scroll_offset = scroll_offset;
         list_view_limit_scroll_offset(list_view);
@@ -2015,8 +2107,105 @@ on_filter_action(CuiWidget *widget)
 
     app.list_view.is_filtered = app.filter_checkbox.value ? true : false;
 
-    app.filter_item_index = app.filter_item_count;
+    app.filtered_item_index = app.filtered_wayland_message_count;
     scroll_to_next_filtered_item(&app.list_view);
+    list_view_limit_scroll_offset(&app.list_view);
+
+    cui_window_request_redraw(window);
+}
+
+static void
+on_non_wayland_messages_action(CuiWidget *widget)
+{
+    CuiAssert(widget->window);
+    CuiWindow *window = widget->window;
+
+    uint32_t message_index = 0;
+
+    CuiAssert(app.list_view.scroll_offset.integer_part >= 0);
+    uint32_t scroll_index = (uint32_t) app.list_view.scroll_offset.integer_part + SCROLL_ROW_OFFSET;
+
+    if (app.list_view.is_filtered)
+    {
+        if (app.list_view.show_non_wayland_messages)
+        {
+            if (scroll_index < app.filtered_message_count)
+            {
+                message_index = app.filtered_messages[scroll_index];
+            }
+        }
+        else
+        {
+            if (scroll_index < app.filtered_wayland_message_count)
+            {
+                message_index = app.filtered_wayland_messages[scroll_index].message_index;
+            }
+        }
+    }
+    else
+    {
+        if (app.list_view.show_non_wayland_messages)
+        {
+            if (scroll_index < app.message_count)
+            {
+                message_index = scroll_index;
+            }
+        }
+        else
+        {
+            if (scroll_index < app.wayland_message_count)
+            {
+                message_index = app.wayland_messages[scroll_index];
+            }
+        }
+    }
+
+    app.list_view.show_non_wayland_messages = app.non_wayland_messages_checkbox.value ? true : false;
+
+    if (app.list_view.is_filtered)
+    {
+        if (app.list_view.show_non_wayland_messages)
+        {
+            for (uint32_t i = 0; i < app.filtered_message_count; i += 1)
+            {
+                if (app.filtered_messages[i] >= message_index)
+                {
+                    app.list_view.scroll_offset.integer_part = (int32_t) i - SCROLL_ROW_OFFSET;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            for (uint32_t i = 0; i < app.filtered_wayland_message_count; i += 1)
+            {
+                if (app.filtered_wayland_messages[i].message_index >= message_index)
+                {
+                    app.list_view.scroll_offset.integer_part = (int32_t) i - SCROLL_ROW_OFFSET;
+                    break;
+                }
+            }
+        }
+    }
+    else
+    {
+        if (app.list_view.show_non_wayland_messages)
+        {
+            app.list_view.scroll_offset.integer_part = (int32_t) message_index - SCROLL_ROW_OFFSET;
+        }
+        else
+        {
+            for (uint32_t i = 0; i < app.wayland_message_count; i += 1)
+            {
+                if (app.wayland_messages[i] >= message_index)
+                {
+                    app.list_view.scroll_offset.integer_part = (int32_t) i - SCROLL_ROW_OFFSET;
+                    break;
+                }
+            }
+        }
+    }
+
     list_view_limit_scroll_offset(&app.list_view);
 
     cui_window_request_redraw(window);
@@ -2050,8 +2239,10 @@ on_input_action(CuiWidget *widget)
 
     apply_filter();
 
-    app.filter_item_index = app.filter_item_count;
+    app.filtered_item_index = app.filtered_wayland_message_count;
     scroll_to_next_filtered_item(&app.list_view);
+    list_view_limit_scroll_offset(&app.list_view);
+    graph_view_limit_scroll_offset(&app.graph_view);
 }
 
 static void
@@ -2223,6 +2414,205 @@ parse_argument(CuiString *str, Argument *argument)
     return true;
 }
 
+static inline bool
+parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint32_t *hash_count)
+{
+    str = cui_string_trim(str);
+
+    int64_t index = 0;
+
+    while ((index < str.count) && (str.data[index] != '['))
+    {
+        index += 1;
+    }
+
+    cui_string_advance(&str, index);
+
+    if ((str.count < 1) || (str.data[0] != '[') || (str.data[str.count - 1] != ')'))
+    {
+        return false;
+    }
+
+    CuiString connection_name = { 0 };
+    CuiString queue_name = { 0 };
+
+    if (!str.count || (str.data[0] != '['))
+    {
+        return false;
+    }
+
+    cui_string_advance(&str, 1);
+    skip_spaces(&str);
+
+    // TODO: use custom version to handle failure case
+    int32_t timestamp_ms = cui_string_parse_int32_advance(&str);
+
+    if (!str.count || (str.data[0] != '.'))
+    {
+        return false;
+    }
+
+    cui_string_advance(&str, 1);
+
+    // TODO: use custom version to handle failure case
+    int32_t timestamp_us = cui_string_parse_int32_advance(&str);
+
+    if (!str.count || (str.data[0] != ']'))
+    {
+        return false;
+    }
+
+    cui_string_advance(&str, 1);
+    skip_spaces(&str);
+
+    if ((str.count > 0) && (str.data[0] == '{'))
+    {
+        if (!parse_in_between(&str, &queue_name, '{', '}'))
+        {
+            return false;
+        }
+    }
+
+    skip_spaces(&str);
+
+    if (cui_string_starts_with(str, CuiStringLiteral("discarded ")))
+    {
+        cui_string_advance(&str, CuiStringLiteral("discarded ").count);
+        skip_spaces(&str);
+    }
+
+    bool sent = false;
+
+    if (cui_string_starts_with(str, CuiStringLiteral("->")))
+    {
+        sent = true;
+        cui_string_advance(&str, CuiStringLiteral("->").count);
+        skip_spaces(&str);
+    }
+
+    CuiString interface_name = parse_identifier(&str);
+
+    if (cui_string_starts_with(str, CuiStringLiteral("#")))
+    {
+        *hash_count += 1;
+        cui_string_advance(&str, 1);
+    }
+    else if (cui_string_starts_with(str, CuiStringLiteral("@")))
+    {
+        *at_count += 1;
+        cui_string_advance(&str, 1);
+    }
+    else
+    {
+        return false;
+    }
+
+    // TODO: use custom version to handle failure case
+    int32_t id = cui_string_parse_int32_advance(&str);
+
+    if (cui_string_starts_with(str, CuiStringLiteral(".")))
+    {
+        cui_string_advance(&str, 1);
+    }
+    else
+    {
+        return false;
+    }
+
+    uint64_t timestamp = ((uint64_t) timestamp_ms * 1000) + (uint64_t) timestamp_us;
+
+    CuiString message_name = parse_identifier(&str);
+
+    if (cui_string_starts_with(str, CuiStringLiteral("(")))
+    {
+        cui_string_advance(&str, 1);
+    }
+    else
+    {
+        return false;
+    }
+
+    uint32_t argument_count = 0;
+    Argument arguments[16];
+
+    while ((str.count > 0) && (str.data[0] != ')'))
+    {
+        if (argument_count >= CuiArrayCount(arguments))
+        {
+            fprintf(stderr, "error: message has more than %zu arguments.\n", CuiArrayCount(arguments));
+            return false;
+        }
+
+        skip_spaces(&str);
+
+        if (!parse_argument(&str, arguments + argument_count))
+        {
+            return false;
+        }
+
+        argument_count += 1;
+
+        if (cui_string_starts_with(str, CuiStringLiteral(",")))
+        {
+            cui_string_advance(&str, 1);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if (cui_string_starts_with(str, CuiStringLiteral(")")))
+    {
+        cui_string_advance(&str, 1);
+    }
+    else
+    {
+        return false;
+    }
+
+    message->type = MESSAGE_TYPE_WAYLAND;
+    message->connection_name = connection_name;
+    message->queue_name = queue_name;
+    message->interface_name = interface_name;
+    message->id = id;
+    message->sent = sent;
+    message->message_name = message_name;
+    message->timestamp_us = timestamp;
+
+    MessageSpec *message_spec = 0;
+
+    for (size_t k = 0; k < CuiArrayCount(message_specs); k += 1)
+    {
+        MessageSpec *msg_spec = message_specs + k;
+
+        if (cui_string_equals(message->interface_name, msg_spec->interface_name) &&
+            cui_string_equals(message->message_name, msg_spec->message_name))
+        {
+            message_spec = msg_spec;
+            break;
+        }
+    }
+
+    if (message_spec && message_matches_signature(argument_count, arguments, message_spec))
+    {
+        if (message_spec->message_format_func)
+        {
+            message_spec->message_format_func(message, argument_count, arguments, message_spec);
+        }
+        else
+        {
+            format_message(message, argument_count, arguments, message_spec);
+        }
+    }
+    else
+    {
+        format_message_without_spec(message, argument_count, arguments);
+    }
+
+    return true;
+}
+
 static void
 load_wayland_file(CuiString wayland_filename)
 {
@@ -2241,6 +2631,11 @@ load_wayland_file(CuiString wayland_filename)
             cui_window_set_title(app.window, cui_sprint(&app.title_arena, CuiStringLiteral("wl_sherlock - %S"), wayland_filename));
         }
 
+        if (app.message_arena.capacity)
+        {
+            cui_arena_deallocate(&app.message_arena);
+        }
+
         if (app.message_allocated)
         {
             cui_platform_deallocate(app.messages, app.message_allocated * sizeof(*app.messages));
@@ -2248,16 +2643,25 @@ load_wayland_file(CuiString wayland_filename)
             app.messages = 0;
         }
 
-        if (app.message_arena.capacity)
+        if (app.wayland_message_allocated)
         {
-            cui_arena_deallocate(&app.message_arena);
+            cui_platform_deallocate(app.wayland_messages, app.wayland_message_allocated * sizeof(*app.wayland_messages));
+            app.wayland_message_allocated = 0;
+            app.wayland_messages = 0;
         }
 
-        if (app.filter_item_allocated)
+        if (app.filtered_message_allocated)
         {
-            cui_platform_deallocate(app.filter_items, app.filter_item_allocated * sizeof(*app.filter_items));
-            app.filter_item_allocated = 0;
-            app.filter_items = 0;
+            cui_platform_deallocate(app.filtered_messages, app.filtered_message_allocated * sizeof(*app.filtered_messages));
+            app.filtered_message_allocated = 0;
+            app.filtered_messages = 0;
+        }
+
+        if (app.filtered_wayland_message_allocated)
+        {
+            cui_platform_deallocate(app.filtered_wayland_messages, app.filtered_wayland_message_allocated * sizeof(*app.filtered_wayland_messages));
+            app.filtered_wayland_message_allocated = 0;
+            app.filtered_wayland_messages = 0;
         }
 
         if (app.file_content.count > 0)
@@ -2283,238 +2687,47 @@ load_wayland_file(CuiString wayland_filename)
             }
         }
 
+        cui_arena_allocate(&app.message_arena, line_count * 512);
+
         app.message_allocated = line_count;
         app.message_count = 0;
         app.messages = (Message *) cui_platform_allocate(app.message_allocated * sizeof(*app.messages));
 
-        cui_arena_allocate(&app.message_arena, app.message_allocated * 512);
+        app.wayland_message_allocated = line_count;
+        app.wayland_message_count = 0;
+        app.wayland_messages = (uint32_t *) cui_platform_allocate(app.wayland_message_allocated * sizeof(*app.wayland_messages));
 
-        app.filter_item_allocated = line_count;
-        app.filter_item_count = 0;
-        app.filter_items = (FilterItem *) cui_platform_allocate(app.filter_item_allocated * sizeof(*app.filter_items));
+        app.filtered_message_allocated = line_count;
+        app.filtered_message_count = 0;
+        app.filtered_messages = (uint32_t *) cui_platform_allocate(app.filtered_message_allocated * sizeof(*app.filtered_messages));
+
+        app.filtered_wayland_message_allocated = line_count;
+        app.filtered_wayland_message_count = 0;
+        app.filtered_wayland_messages = (FilterItem *) cui_platform_allocate(app.filtered_wayland_message_allocated * sizeof(*app.filtered_wayland_messages));
 
         uint32_t at_count = 0;
         uint32_t hash_count = 0;
-
-        uint64_t last_timestamp = 0;
 
         CuiString cursor = app.file_content;
 
         while (cursor.count > 0)
         {
-            CuiString str = cui_string_trim(cui_string_get_next_line(&cursor));
-
-            int64_t index = 0;
-
-            while ((index < str.count) && (str.data[index] != '['))
-            {
-                index += 1;
-            }
-
-            cui_string_advance(&str, index);
-
-            if ((str.count < 1) || (str.data[0] != '[') || (str.data[str.count - 1] != ')'))
-            {
-                continue;
-            }
-
-            CuiString connection_name = { 0 };
-            CuiString queue_name = { 0 };
-
-            if (!str.count || (str.data[0] != '['))
-            {
-                continue;
-            }
-
-            cui_string_advance(&str, 1);
-            skip_spaces(&str);
-
-            // TODO: use custom version to handle failure case
-            int32_t timestamp_ms = cui_string_parse_int32_advance(&str);
-
-            if (!str.count || (str.data[0] != '.'))
-            {
-                continue;
-            }
-
-            cui_string_advance(&str, 1);
-
-            // TODO: use custom version to handle failure case
-            int32_t timestamp_us = cui_string_parse_int32_advance(&str);
-
-            if (!str.count || (str.data[0] != ']'))
-            {
-                continue;
-            }
-
-            cui_string_advance(&str, 1);
-            skip_spaces(&str);
-
-            if ((str.count > 0) && (str.data[0] == '{'))
-            {
-                if (!parse_in_between(&str, &queue_name, '{', '}'))
-                {
-                    continue;
-                }
-            }
-
-            skip_spaces(&str);
-
-            if (cui_string_starts_with(str, CuiStringLiteral("discarded ")))
-            {
-                cui_string_advance(&str, CuiStringLiteral("discarded ").count);
-                skip_spaces(&str);
-            }
-
-            bool sent = false;
-
-            if (cui_string_starts_with(str, CuiStringLiteral("->")))
-            {
-                sent = true;
-                cui_string_advance(&str, CuiStringLiteral("->").count);
-                skip_spaces(&str);
-            }
-
-            CuiString interface_name = parse_identifier(&str);
-
-            if (cui_string_starts_with(str, CuiStringLiteral("#")))
-            {
-                hash_count += 1;
-                cui_string_advance(&str, 1);
-            }
-            else if (cui_string_starts_with(str, CuiStringLiteral("@")))
-            {
-                at_count += 1;
-                cui_string_advance(&str, 1);
-            }
-            else
-            {
-                continue;
-            }
-
-            // TODO: use custom version to handle failure case
-            int32_t id = cui_string_parse_int32_advance(&str);
-
-            if (cui_string_starts_with(str, CuiStringLiteral(".")))
-            {
-                cui_string_advance(&str, 1);
-            }
-            else
-            {
-                continue;
-            }
-
-            uint64_t timestamp = ((uint64_t) timestamp_ms * 1000) + (uint64_t) timestamp_us;
-
-            CuiString message_name = parse_identifier(&str);
-
-            if (cui_string_starts_with(str, CuiStringLiteral("(")))
-            {
-                cui_string_advance(&str, 1);
-            }
-            else
-            {
-                continue;
-            }
-
-            bool success = true;
-
-            uint32_t argument_count = 0;
-            Argument arguments[16];
-
-            while (success && (str.count > 0) && (str.data[0] != ')'))
-            {
-                if (argument_count >= CuiArrayCount(arguments))
-                {
-                    fprintf(stderr, "error: message has more than %zu arguments.\n", CuiArrayCount(arguments));
-                    success = false;
-                    break;
-                }
-
-                skip_spaces(&str);
-
-                if (!parse_argument(&str, arguments + argument_count))
-                {
-                    success = false;
-                    break;
-                }
-
-                argument_count += 1;
-
-                if (cui_string_starts_with(str, CuiStringLiteral(",")))
-                {
-                    cui_string_advance(&str, 1);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            if (success && cui_string_starts_with(str, CuiStringLiteral(")")))
-            {
-                cui_string_advance(&str, 1);
-            }
-            else
-            {
-                continue;
-            }
+            CuiString str = cui_string_get_next_line(&cursor);
 
             uint32_t message_index = app.message_count;
+            Message *message = app.messages + message_index;
             app.message_count += 1;
 
-            Message *message = app.messages + message_index;
-
-            message->connection_name = connection_name;
-            message->queue_name = queue_name;
-            message->interface_name = interface_name;
-            message->id = id;
-            message->sent = sent;
-            message->message_name = message_name;
-            message->timestamp_us = timestamp;
-
-            MessageSpec *message_spec = 0;
-
-            for (size_t k = 0; k < CuiArrayCount(message_specs); k += 1)
+            if (parse_wayland_message(message, str, &at_count, &hash_count))
             {
-                MessageSpec *msg_spec = message_specs + k;
-
-                if (cui_string_equals(message->interface_name, msg_spec->interface_name) &&
-                    cui_string_equals(message->message_name, msg_spec->message_name))
-                {
-                    message_spec = msg_spec;
-                    break;
-                }
-            }
-
-            if (message_spec && message_matches_signature(argument_count, arguments, message_spec))
-            {
-                if (message_spec->message_format_func)
-                {
-                    message_spec->message_format_func(message, argument_count, arguments, message_spec);
-                }
-                else
-                {
-                    format_message(message, argument_count, arguments, message_spec);
-                }
+                app.wayland_messages[app.wayland_message_count] = message_index;
+                app.wayland_message_count += 1;
             }
             else
             {
-                format_message_without_spec(message, argument_count, arguments);
+                message->type = MESSAGE_TYPE_PLAIN;
+                message->message_name = str;
             }
-
-            uint32_t time_delta = 0;
-
-            if (app.filter_item_count > 0)
-            {
-                time_delta = (uint32_t) (timestamp - last_timestamp);
-            }
-
-            app.filter_items[app.filter_item_count].message_index = message_index;
-            app.filter_items[app.filter_item_count].time_delta = time_delta;
-            app.filter_item_count += 1;
-
-            last_timestamp = timestamp;
         }
 
         if (at_count > hash_count)
@@ -2539,6 +2752,8 @@ load_wayland_file(CuiString wayland_filename)
 
             app.file_loaded = true;
         }
+
+        apply_filter();
     }
 }
 
@@ -2591,6 +2806,16 @@ create_top_row(CuiWidget *parent, CuiArena *arena)
     top_container->color_normal_background = CUI_COLOR_WINDOW_TITLEBAR_BACKGROUND;
 
     cui_widget_append_child(parent, top_container);
+
+    cui_widget_init(&app.non_wayland_messages_checkbox, CUI_WIDGET_TYPE_CHECKBOX);
+    cui_widget_set_label(&app.non_wayland_messages_checkbox, CuiStringLiteral("Show non-wayland messages"));
+    cui_widget_set_padding(&app.non_wayland_messages_checkbox, 0.0f, 4.0f, 0.0f, 12.0f);
+    cui_widget_set_inline_padding(&app.non_wayland_messages_checkbox, 8.0f);
+    cui_widget_set_font(&app.non_wayland_messages_checkbox, app.list_view_font);
+
+    app.non_wayland_messages_checkbox.on_action = on_non_wayland_messages_action;
+
+    cui_widget_append_child(top_container, &app.non_wayland_messages_checkbox);
 
     cui_widget_init(&app.filter_checkbox, CUI_WIDGET_TYPE_CHECKBOX);
     cui_widget_set_label(&app.filter_checkbox, CuiStringLiteral("Filter"));

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+ - Show non-wayland messages
+
 ### Changed
 
  - Migrate to c_make
