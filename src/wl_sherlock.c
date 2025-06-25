@@ -1449,7 +1449,7 @@ list_view_handle_event(CuiWidget *widget, CuiEventType event_type)
             }
 
             result = true;
-        }
+        } break;
 
         case CUI_EVENT_TYPE_KEY_DOWN:
         {
