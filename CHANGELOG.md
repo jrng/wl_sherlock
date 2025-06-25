@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+ - Migrate to c_make
+
 ## [0.3.0] - 2025-06-16
 
 ### Added
