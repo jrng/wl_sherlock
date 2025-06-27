@@ -2237,12 +2237,15 @@ on_input_action(CuiWidget *widget)
     app.filter.message_name = message_name;
     app.filter.id = id;
 
-    apply_filter();
+    if (app.file_loaded)
+    {
+        apply_filter();
 
-    app.filtered_item_index = app.filtered_wayland_message_count;
-    scroll_to_next_filtered_item(&app.list_view);
-    list_view_limit_scroll_offset(&app.list_view);
-    graph_view_limit_scroll_offset(&app.graph_view);
+        app.filtered_item_index = app.filtered_wayland_message_count;
+        scroll_to_next_filtered_item(&app.list_view);
+        list_view_limit_scroll_offset(&app.list_view);
+        graph_view_limit_scroll_offset(&app.graph_view);
+    }
 }
 
 static void
