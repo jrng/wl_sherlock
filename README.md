@@ -37,10 +37,18 @@ wl_surface@20.commit
 will select all `.commit()` messages for the object with id 20 of the
 `wl_surface` interface.
 
+You can chain messages. The filter will then select all messages from the
+objects that the previous message created. So for example filtering all
+`done()` events of the `sync()` request you can do
+
+```
+wl_display.sync.done
+```
+
 ## Graph view
 
 The graph view at the bottom of the window will always show the delta time
 between all filtered messages. If the filter is empty it shows the time
-difference between all messages. So if combined with a filter on the
-`.commit` request it can be used to measure the framerate at which the
+difference between all messages. So if combined that with a filter on the
+`.commit()` request it can be used to measure the framerate at which the
 application is rendering.
