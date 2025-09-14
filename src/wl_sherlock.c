@@ -77,6 +77,21 @@ typedef struct
     CuiString value_str;
 } Argument;
 
+typedef uint64_t ObjectId;
+
+typedef struct
+{
+    CuiString interface_name;
+    ObjectId id;
+} Object;
+
+typedef struct
+{
+    uint32_t allocated;
+    uint32_t count;
+    Object *items;
+} ObjectList;
+
 typedef enum
 {
     MESSAGE_TYPE_PLAIN   = 0,
@@ -90,7 +105,9 @@ typedef struct
     CuiString queue_name;
     CuiString interface_name;
     CuiString message_name;
-    uint32_t id;
+    ObjectId id;
+
+    Object created_object;
 
     bool sent;
 
@@ -153,9 +170,9 @@ typedef struct
 
 typedef struct
 {
-    CuiString interface_name;
-    CuiString message_name;
-    uint32_t id;
+    Object object;
+    uint32_t message_count;
+    CuiString messages[3];
 } Filter;
 
 typedef struct
@@ -168,6 +185,12 @@ typedef struct
     CuiString file_content;
 
     CuiArena message_arena;
+
+    uint32_t generation_allocated;
+    uint32_t *generations;
+
+    uint32_t server_generation_allocated;
+    uint32_t *server_generations;
 
     uint32_t message_allocated;
     uint32_t message_count;
@@ -184,6 +207,8 @@ typedef struct
     uint32_t filtered_wayland_message_allocated;
     uint32_t filtered_wayland_message_count;
     FilterItem *filtered_wayland_messages;
+
+    ObjectList filtered_objects[2];
 
     Filter filter;
     uint32_t filtered_item_index;
@@ -230,6 +255,104 @@ struct MessageSpec
     uint32_t argument_count;
     ArgumentSpec *arguments;
 };
+
+static uint32_t
+get_id_generation(uint32_t id)
+{
+    CuiAssert(id > 0);
+
+    if (id < 0xFF000000)
+    {
+        uint32_t index = id - 1;
+
+        if (index >= app.generation_allocated)
+        {
+            return 0;
+        }
+
+        return app.generations[index];
+    }
+    else
+    {
+        uint32_t index = id & 0xFFFFFF;
+
+        if (index >= app.server_generation_allocated)
+        {
+            return 0;
+        }
+
+        return app.server_generations[index];
+    }
+}
+
+static ObjectId
+create_new_object_with_id(uint32_t id)
+{
+    CuiAssert(id > 0);
+
+    uint32_t generation;
+
+    if (id < 0xFF000000)
+    {
+        uint32_t index = id - 1;
+
+        if (index >= app.generation_allocated)
+        {
+            uint32_t old_allocated = app.generation_allocated;
+            app.generation_allocated = 64 * ((index + 63) / 64);
+
+            uint32_t *old_generations = app.generations;
+            app.generations = (uint32_t *) cui_platform_allocate(app.generation_allocated * sizeof(*app.generations));
+
+            for (uint32_t i = 0; i < old_allocated; i += 1)
+            {
+                app.generations[i] = old_generations[i];
+            }
+
+            for (uint32_t i = old_allocated; i < app.generation_allocated; i += 1)
+            {
+                app.generations[i] = 0;
+            }
+
+            cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
+        }
+
+        app.generations[index] += 1;
+        generation = app.generations[index];
+    }
+    else
+    {
+        uint32_t index = id & 0xFFFFFF;
+
+        if (index >= app.server_generation_allocated)
+        {
+            uint32_t old_allocated = app.server_generation_allocated;
+            app.server_generation_allocated = 64 * ((index + 63) / 64);
+
+            uint32_t *old_generations = app.server_generations;
+            app.server_generations = (uint32_t *) cui_platform_allocate(app.server_generation_allocated * sizeof(*app.server_generations));
+
+            for (uint32_t i = 0; i < old_allocated; i += 1)
+            {
+                app.server_generations[i] = old_generations[i];
+            }
+
+            for (uint32_t i = old_allocated; i < app.server_generation_allocated; i += 1)
+            {
+                app.server_generations[i] = 0;
+            }
+
+            cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
+        }
+
+        app.server_generations[index] += 1;
+        generation = app.server_generations[index];
+    }
+
+    ObjectId object_id = ((uint64_t) generation << 32) | (uint64_t) id;
+
+    return object_id;
+}
 
 static inline bool
 message_matches_signature(uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
@@ -873,7 +996,7 @@ zwp_linux_buffer_params_v1__add__format_func(Message *message, uint32_t argument
 static inline bool
 filter_is_empty(void)
 {
-    return (app.filter.id == 0) && (app.filter.interface_name.count == 0) && (app.filter.message_name.count == 0);
+    return (app.filter.object.id == 0) && (app.filter.object.interface_name.count == 0) && (app.filter.message_count == 0);
 }
 
 static inline int32_t
@@ -1298,7 +1421,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
             w = cui_window_get_string_width(widget->window, app.list_view_font, app.id_character);
             cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, app.id_character, character_color);
 
-            CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), message->id);
+            uint32_t id = (uint32_t) message->id;
+            CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), id);
 
             cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, id_str, text_color);
             x += id_column_width;
@@ -1818,7 +1942,63 @@ graph_view_handle_event(CuiWidget *widget, CuiEventType event_type)
 }
 
 static void
-apply_filter(void)
+filter_objects(ObjectList *object_list, ObjectList *result, CuiString message_name)
+{
+    result->count = 0;
+
+    for (uint32_t message_index = 0; message_index < app.message_count; message_index += 1)
+    {
+        Message *message = app.messages + message_index;
+
+        if (message->type == MESSAGE_TYPE_WAYLAND)
+        {
+            bool matches = false;
+
+            for (uint32_t object_index = 0; object_index < object_list->count; object_index += 1)
+            {
+                Object *object = object_list->items + object_index;
+
+                uint32_t generation = (uint32_t) ((object->id >> 32) & 0xFFFFFFFF);
+                uint32_t object_id = (uint32_t) (object->id & 0xFFFFFFFF);
+                uint32_t message_id = (uint32_t) (message->id & 0xFFFFFFFF);
+
+                if ((object->id > 0) && (object->id != message->id) && ((generation != 0) || (message_id != object_id)))
+                {
+                    continue;
+                }
+
+                // TODO: change to contains
+                if ((object->interface_name.count > 0) && !cui_string_starts_with(message->interface_name, object->interface_name))
+                {
+                    continue;
+                }
+
+                // TODO: change to contains
+                if ((message_name.count > 0) && !cui_string_starts_with(message->message_name, message_name))
+                {
+                    continue;
+                }
+
+                matches = true;
+                break;
+            }
+
+            if (matches)
+            {
+                Object created_object = message->created_object;
+
+                if (created_object.id > 0)
+                {
+                    result->items[result->count] = created_object;
+                    result->count += 1;
+                }
+            }
+        }
+    }
+}
+
+static void
+filter_messages(ObjectList *object_list, CuiString message_name)
 {
     app.filtered_message_count = 0;
     app.filtered_wayland_message_count = 0;
@@ -1829,43 +2009,60 @@ apply_filter(void)
 
         if (message->type == MESSAGE_TYPE_WAYLAND)
         {
-            // TODO: change to contains
-            if ((app.filter.interface_name.count > 0) && !cui_string_starts_with(message->interface_name, app.filter.interface_name))
+            bool matches = false;
+
+            for (uint32_t object_index = 0; object_index < object_list->count; object_index += 1)
             {
-                continue;
-            }
+                Object *object = object_list->items + object_index;
 
-            // TODO: change to contains
-            if ((app.filter.message_name.count > 0) && !cui_string_starts_with(message->message_name, app.filter.message_name))
-            {
-                continue;
-            }
+                uint32_t generation = (uint32_t) ((object->id >> 32) & 0xFFFFFFFF);
+                uint32_t object_id = (uint32_t) (object->id & 0xFFFFFFFF);
+                uint32_t message_id = (uint32_t) (message->id & 0xFFFFFFFF);
 
-            if ((app.filter.id > 0) && (message->id != app.filter.id))
-            {
-                continue;
-            }
-
-            uint32_t time_delta = 0;
-
-            if (app.filtered_wayland_message_count > 0)
-            {
-                Message *prev_message = app.messages + app.filtered_wayland_messages[app.filtered_wayland_message_count - 1].message_index;
-
-                CuiAssert(prev_message->type == MESSAGE_TYPE_WAYLAND);
-
-                if (message->timestamp_us > prev_message->timestamp_us)
+                if ((object->id > 0) && (object->id != message->id) && ((generation != 0) || (message_id != object_id)))
                 {
-                    time_delta = (uint32_t) (message->timestamp_us - prev_message->timestamp_us);
+                    continue;
                 }
+
+                // TODO: change to contains
+                if ((object->interface_name.count > 0) && !cui_string_starts_with(message->interface_name, object->interface_name))
+                {
+                    continue;
+                }
+
+                // TODO: change to contains
+                if ((message_name.count > 0) && !cui_string_starts_with(message->message_name, message_name))
+                {
+                    continue;
+                }
+
+                matches = true;
+                break;
             }
 
-            app.filtered_wayland_messages[app.filtered_wayland_message_count].message_index = message_index;
-            app.filtered_wayland_messages[app.filtered_wayland_message_count].time_delta = time_delta;
-            app.filtered_wayland_message_count += 1;
+            if (matches)
+            {
+                uint32_t time_delta = 0;
 
-            app.filtered_messages[app.filtered_message_count] = message_index;
-            app.filtered_message_count += 1;
+                if (app.filtered_wayland_message_count > 0)
+                {
+                    Message *prev_message = app.messages + app.filtered_wayland_messages[app.filtered_wayland_message_count - 1].message_index;
+
+                    CuiAssert(prev_message->type == MESSAGE_TYPE_WAYLAND);
+
+                    if (message->timestamp_us > prev_message->timestamp_us)
+                    {
+                        time_delta = (uint32_t) (message->timestamp_us - prev_message->timestamp_us);
+                    }
+                }
+
+                app.filtered_wayland_messages[app.filtered_wayland_message_count].message_index = message_index;
+                app.filtered_wayland_messages[app.filtered_wayland_message_count].time_delta = time_delta;
+                app.filtered_wayland_message_count += 1;
+
+                app.filtered_messages[app.filtered_message_count] = message_index;
+                app.filtered_message_count += 1;
+            }
         }
         else
         {
@@ -1874,6 +2071,35 @@ apply_filter(void)
             app.filtered_messages[app.filtered_message_count] = message_index;
             app.filtered_message_count += 1;
         }
+    }
+}
+
+static void
+apply_filter(void)
+{
+    uint32_t filtered_object_index = 0;
+
+    app.filtered_objects[filtered_object_index].count = 0;
+    app.filtered_objects[filtered_object_index].items[app.filtered_objects[filtered_object_index].count].interface_name = app.filter.object.interface_name;
+    app.filtered_objects[filtered_object_index].items[app.filtered_objects[filtered_object_index].count].id = app.filter.object.id;
+    app.filtered_objects[filtered_object_index].count += 1;
+
+    if (app.filter.message_count > 0)
+    {
+        for (uint32_t i = 0; i < (app.filter.message_count - 1); i += 1)
+        {
+            ObjectList *input = app.filtered_objects + filtered_object_index;
+            filtered_object_index = 1 - filtered_object_index;
+            ObjectList *output = app.filtered_objects + filtered_object_index;
+
+            filter_objects(input, output, app.filter.messages[i]);
+        }
+
+        filter_messages(app.filtered_objects + filtered_object_index, app.filter.messages[app.filter.message_count - 1]);
+    }
+    else
+    {
+        filter_messages(app.filtered_objects + filtered_object_index, cui_make_string(0, 0));
     }
 }
 
@@ -2216,26 +2442,29 @@ on_input_action(CuiWidget *widget)
 {
     CuiString value = cui_string_trim(cui_widget_get_textinput_value(widget));
 
-    CuiString interface_name = parse_identifier(&value);
-    CuiString message_name = { 0 };
-    uint32_t id = 0;
+    app.filter.object.interface_name = parse_identifier(&value);
+    app.filter.object.id = 0;
+    app.filter.message_count = 0;
 
     if ((value.count > 0) && ((value.data[0] == '#') || (value.data[0] == '@')))
     {
         cui_string_advance(&value, 1);
         // TODO: use custom parsing function
-        id = cui_string_parse_int32_advance(&value);
+        app.filter.object.id = cui_string_parse_int32_advance(&value);
     }
 
-    if ((value.count > 0) && (value.data[0] == '.'))
+    while ((value.count > 0) && (value.data[0] == '.') && (app.filter.message_count < CuiArrayCount(app.filter.messages)))
     {
         cui_string_advance(&value, 1);
-        message_name = parse_identifier(&value);
-    }
 
-    app.filter.interface_name = interface_name;
-    app.filter.message_name = message_name;
-    app.filter.id = id;
+        CuiString message_name = parse_identifier(&value);
+
+        if (message_name.count > 0)
+        {
+            app.filter.messages[app.filter.message_count] = message_name;
+            app.filter.message_count += 1;
+        }
+    }
 
     if (app.file_loaded)
     {
@@ -2511,7 +2740,10 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
     }
 
     // TODO: use custom version to handle failure case
-    int32_t id = cui_string_parse_int32_advance(&str);
+    uint32_t object_id = cui_string_parse_int32_advance(&str);
+    uint32_t generation = get_id_generation(object_id);
+
+    ObjectId id = ((uint64_t) generation << 32) | (uint64_t) object_id;
 
     if (cui_string_starts_with(str, CuiStringLiteral(".")))
     {
@@ -2535,6 +2767,10 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
         return false;
     }
 
+    Object created_object;
+    created_object.interface_name = cui_make_string(0, 0);
+    created_object.id = 0;
+
     uint32_t argument_count = 0;
     Argument arguments[16];
 
@@ -2548,12 +2784,25 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
 
         skip_spaces(&str);
 
-        if (!parse_argument(&str, arguments + argument_count))
+        Argument *argument = arguments + argument_count;
+
+        if (!parse_argument(&str, argument))
         {
             return false;
         }
 
         argument_count += 1;
+
+        if (argument->type == ARGUMENT_TYPE_NEW_ID)
+        {
+            if (created_object.id != 0)
+            {
+                fprintf(stderr, "warning: message creates more than 1 object.\n");
+            }
+
+            created_object.interface_name = argument->interface_name;
+            created_object.id = create_new_object_with_id(argument->value.id);
+        }
 
         if (cui_string_starts_with(str, CuiStringLiteral(",")))
         {
@@ -2579,6 +2828,7 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
     message->queue_name = queue_name;
     message->interface_name = interface_name;
     message->id = id;
+    message->created_object = created_object;
     message->sent = sent;
     message->message_name = message_name;
     message->timestamp_us = timestamp;
@@ -2624,9 +2874,9 @@ load_wayland_file(CuiString wayland_filename)
     if (file)
     {
         cui_widget_set_textinput_value(&app.filter_input, CuiStringLiteral(""));
-        app.filter.interface_name.count = 0;
-        app.filter.message_name.count = 0;
-        app.filter.id = 0;
+        app.filter.object.interface_name.count = 0;
+        app.filter.object.id = 0;
+        app.filter.message_count = 0;
 
         if (app.root_widget)
         {
@@ -2667,6 +2917,16 @@ load_wayland_file(CuiString wayland_filename)
             app.filtered_wayland_messages = 0;
         }
 
+        for (uint32_t i = 0; i < CuiArrayCount(app.filtered_objects); i += 1)
+        {
+            if (app.filtered_objects[i].allocated)
+            {
+                cui_platform_deallocate(app.filtered_objects[i].items, app.filtered_objects[i].allocated * sizeof(*app.filtered_objects[i].items));
+                app.filtered_objects[i].allocated = 0;
+                app.filtered_objects[i].items = 0;
+            }
+        }
+
         if (app.file_content.count > 0)
         {
             cui_platform_deallocate(app.file_content.data, app.file_content.count);
@@ -2692,6 +2952,28 @@ load_wayland_file(CuiString wayland_filename)
 
         cui_arena_allocate(&app.message_arena, line_count * 512);
 
+        if (app.generation_allocated == 0)
+        {
+            app.generation_allocated = 4;
+            app.generations = (uint32_t *) cui_platform_allocate(app.generation_allocated * sizeof(*app.generations));
+        }
+
+        for (uint32_t i = 0; i < app.generation_allocated; i += 1)
+        {
+            app.generations[i] = 0;
+        }
+
+        if (app.server_generation_allocated == 0)
+        {
+            app.server_generation_allocated = 4;
+            app.server_generations = (uint32_t *) cui_platform_allocate(app.server_generation_allocated * sizeof(*app.server_generations));
+        }
+
+        for (uint32_t i = 0; i < app.server_generation_allocated; i += 1)
+        {
+            app.server_generations[i] = 0;
+        }
+
         app.message_allocated = line_count;
         app.message_count = 0;
         app.messages = (Message *) cui_platform_allocate(app.message_allocated * sizeof(*app.messages));
@@ -2707,6 +2989,13 @@ load_wayland_file(CuiString wayland_filename)
         app.filtered_wayland_message_allocated = line_count;
         app.filtered_wayland_message_count = 0;
         app.filtered_wayland_messages = (FilterItem *) cui_platform_allocate(app.filtered_wayland_message_allocated * sizeof(*app.filtered_wayland_messages));
+
+        for (uint32_t i = 0; i < CuiArrayCount(app.filtered_objects); i += 1)
+        {
+            app.filtered_objects[i].allocated = line_count;
+            app.filtered_objects[i].count = 0;
+            app.filtered_objects[i].items = (Object *) cui_platform_allocate(app.filtered_objects[i].allocated * sizeof(*app.filtered_objects[i].items));
+        }
 
         uint32_t at_count = 0;
         uint32_t hash_count = 0;

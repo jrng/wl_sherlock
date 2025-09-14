@@ -5,6 +5,7 @@
 ### Added
 
  - Show non-wayland messages
+ - Filter indirect messages (e.g.: `.frame.done`)
 
 ### Changed
 
