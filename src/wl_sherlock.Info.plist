@@ -12,7 +12,9 @@
   <string>APPL</string>
   <key>CFBundleExecutable</key>
   <string>wl_sherlock</string>
+  <key>CFBundleIconName</key>
+  <string>wl_sherlock</string>
   <key>CFBundleIconFile</key>
-  <string>wl_sherlock.icns</string>
+  <string>wl_sherlock</string>
 </dict>
 </plist>

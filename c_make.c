@@ -233,6 +233,17 @@ C_MAKE_ENTRY()
 
                 CMakeCommand command = { 0 };
 
+                c_make_command_append(&command, "actool",
+                                      "--compile", c_make_c_string_path_concat(c_make_get_build_path(), "wl_sherlock.app", "Contents", "Resources"),
+                                      "--app-icon", "wl_sherlock", "--minimum-deployment-target", "26.0", "--platform", "macosx",
+                                      "--output-partial-info-plist", c_make_c_string_path_concat(c_make_get_build_path(), "wl_sherlock.partial.plist"),
+                                      c_make_c_string_path_concat(c_make_get_source_path(), "icon", "wl_sherlock.icon"));
+
+                c_make_log(CMakeLogLevelInfo, "generate 'Assets.car'\n");
+                c_make_command_run_and_reset(&command);
+
+                c_make_process_wait_for_all();
+
                 c_make_command_append(&command, "iconutil", "-c", "icns", "-o",
                                       c_make_c_string_path_concat(c_make_get_build_path(), "wl_sherlock.app", "Contents", "Resources", "wl_sherlock.icns"),
                                       c_make_c_string_path_concat(c_make_get_build_path(), "wl_sherlock.iconset"));
