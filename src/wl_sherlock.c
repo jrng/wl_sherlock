@@ -1907,6 +1907,34 @@ graph_view_handle_event(CuiWidget *widget, CuiEventType event_type)
             result = true;
         } break;
 
+        case CUI_EVENT_TYPE_MOUSE_WHEEL:
+        {
+            float wheel_dx = cui_window_get_wheel_dx(window);
+
+            if (wheel_dx != 0.0f)
+            {
+                int32_t bar_width = graph_view->px4 + graph_view->px1;
+
+                bool is_precise_scrolling = cui_window_is_precise_scrolling(window);
+
+                float delta = wheel_dx;
+
+                if (!is_precise_scrolling)
+                {
+                    delta *= (float) bar_width;
+                }
+
+                graph_view->scroll_offset.fractional_part = lroundf((float) graph_view->scroll_offset.fractional_part - delta);
+                graph_view->scroll_offset = normalize_scroll_offset(graph_view->scroll_offset, bar_width);
+
+                graph_view_limit_scroll_offset(graph_view);
+
+                cui_window_request_redraw(window);
+            }
+
+            result = true;
+        } break;
+
         case CUI_EVENT_TYPE_KEY_DOWN:
         {
             if (cui_window_event_is_ctrl_down(window) || cui_window_event_is_command_down(window))
