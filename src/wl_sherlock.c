@@ -1764,15 +1764,15 @@ graph_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme 
         {
             color = CuiHexColor(0xFFAAAAAA);
         }
-        else if (filter_item->time_delta < 9000) // 8.333 ms
+        else if (filter_item->time_delta < ((8333 * 11) / 10)) // 8.333 ms
         {
             color = blue_foreground;
         }
-        else if (filter_item->time_delta < 17000) // 16.666 ms
+        else if (filter_item->time_delta < ((16666 * 11) / 10)) // 16.666 ms
         {
             color = green_foreground;
         }
-        else if (filter_item->time_delta < 34000) // 33.333 ms
+        else if (filter_item->time_delta < ((33333 * 11) / 10)) // 33.333 ms
         {
             color = yellow_foreground;
         }
