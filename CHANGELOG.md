@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-09-17
+
 ### Added
 
  - Show non-wayland messages
