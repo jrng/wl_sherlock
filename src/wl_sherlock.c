@@ -150,7 +150,10 @@ typedef struct
     int32_t px1;
     int32_t px2;
     int32_t px4;
+    int32_t px8;
     int32_t px16;
+
+    int32_t label_width;
 
     ScrollOffset scroll_offset;
 
@@ -221,6 +224,8 @@ typedef struct
     float font_size;
     float line_height;
     CuiFontId list_view_font;
+
+    CuiFontId graph_view_font;
 
     CuiWidget open_file_button;
     CuiWidget filter_input;
@@ -1681,7 +1686,7 @@ graph_view_limit_scroll_offset(GraphView *graph_view)
 {
     int32_t bar_width = graph_view->px4 + graph_view->px1;
 
-    int32_t count = app.filtered_wayland_message_count;
+    int32_t count = cui_max_int32(app.filtered_wayland_message_count - 1, 0);
 
     CuiRect scroll_handle_bound = graph_view->scroll_bar_rect;
     scroll_handle_bound.min.x += graph_view->px1;
@@ -1690,7 +1695,7 @@ graph_view_limit_scroll_offset(GraphView *graph_view)
     scroll_handle_bound.max.y -= graph_view->px1;
 
     CuiPoint scroll_handle = limit_scroll_offset(&graph_view->scroll_offset, scroll_handle_bound.min.x, scroll_handle_bound.max.x,
-                                                 graph_view->px16, cui_rect_get_width(graph_view->graph_rect), bar_width, count);
+                                                 graph_view->px16, cui_rect_get_width(graph_view->graph_rect) - graph_view->label_width, bar_width, count);
 
     scroll_handle_bound.min.x = scroll_handle.x;
     scroll_handle_bound.max.x = scroll_handle.y;
@@ -1706,14 +1711,17 @@ graph_view_set_ui_scale(CuiWidget *widget, float ui_scale)
     graph_view->px1  = lroundf(ui_scale *  1.0f);
     graph_view->px2  = lroundf(ui_scale *  2.0f);
     graph_view->px4  = lroundf(ui_scale *  4.0f);
+    graph_view->px8  = lroundf(ui_scale *  8.0f);
     graph_view->px16 = lroundf(ui_scale * 16.0f);
+
+    graph_view->label_width = cui_window_get_string_width(app.window, app.graph_view_font, CuiStringLiteral(" 120 Hz"));
 }
 
 static CuiPoint
 graph_view_get_preferred_size(CuiWidget *widget)
 {
     (void) widget;
-    return cui_make_point(0, lroundf(widget->ui_scale * 75.0f));
+    return cui_make_point(0, lroundf(widget->ui_scale * 100.0f));
 }
 
 static void
@@ -1750,9 +1758,9 @@ graph_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme 
 
     int32_t view_height = cui_rect_get_height(rect);
 
-    CuiRect prev_clip = cui_draw_set_clip_rect(ctx, rect);
+    CuiRect prev_clip = cui_draw_set_clip_rect(ctx, cui_make_rect(rect.min.x, rect.min.y, rect.max.x - graph_view->label_width + graph_view->px8, rect.max.y));
 
-    int32_t x = rect.min.x;
+    int32_t x = rect.min.x - graph_view->scroll_offset.fractional_part;
 
     for (uint32_t i = graph_view->scroll_offset.integer_part + 1; i < app.filtered_wayland_message_count; i += 1)
     {
@@ -1794,19 +1802,36 @@ graph_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme 
         }
     }
 
+    cui_draw_fill_shadow(ctx, rect.min.x, rect.min.y + graph_view->px4, rect.max.x, graph_view->px4, CUI_DIRECTION_SOUTH, color_theme->window_titlebar_background);
+    cui_draw_fill_shadow(ctx, rect.max.x - graph_view->label_width, rect.min.y, rect.max.y, graph_view->px8, CUI_DIRECTION_WEST, color_theme->window_titlebar_background);
+
+    cui_draw_set_clip_rect(ctx, rect);
+
+    float baseline = cui_window_get_font_baseline_offset(widget->window, app.graph_view_font);
+
     int32_t fps30_y = rect.max.y - (graph_view->px1 + (view_height * 33333) / 50000);
     CuiRect fps30_rect = cui_make_rect(rect.min.x, fps30_y - graph_view->px1, rect.max.x, fps30_y);
     cui_draw_fill_rect(ctx, fps30_rect, CuiHexColor(0x3FC22630));
+
+    CuiString fps30_str = CuiStringLiteral("30 Hz");
+    cui_draw_fill_string(ctx, app.graph_view_font, (float) fps30_rect.max.x - cui_window_get_string_width(widget->window, app.graph_view_font, fps30_str),
+                         (float) fps30_rect.max.y + baseline, fps30_str, yellow_foreground);
 
     int32_t fps60_y = rect.max.y - (graph_view->px1 + (view_height * 16666) / 50000);
     CuiRect fps60_rect = cui_make_rect(rect.min.x, fps60_y - graph_view->px1, rect.max.x, fps60_y);
     cui_draw_fill_rect(ctx, fps60_rect, CuiHexColor(0x3FD5D84D));
 
+    CuiString fps60_str = CuiStringLiteral("60 Hz");
+    cui_draw_fill_string(ctx, app.graph_view_font, (float) fps60_rect.max.x - cui_window_get_string_width(widget->window, app.graph_view_font, fps60_str),
+                         (float) fps60_rect.max.y + baseline, fps60_str, green_foreground);
+
     int32_t fps120_y = rect.max.y - (graph_view->px1 + (view_height * 8333) / 50000);
     CuiRect fps120_rect = cui_make_rect(rect.min.x, fps120_y - graph_view->px1, rect.max.x, fps120_y);
     cui_draw_fill_rect(ctx, fps120_rect, CuiHexColor(0x3F33B97B));
 
-    cui_draw_fill_shadow(ctx, rect.min.x, rect.min.y + graph_view->px4, rect.max.x, graph_view->px4, CUI_DIRECTION_SOUTH, color_theme->window_titlebar_background);
+    CuiString fps120_str = CuiStringLiteral("120 Hz");
+    cui_draw_fill_string(ctx, app.graph_view_font, (float) fps120_rect.max.x - cui_window_get_string_width(widget->window, app.graph_view_font, fps120_str),
+                         (float) fps120_rect.max.y + baseline, fps120_str, blue_foreground);
 
     cui_draw_set_clip_rect(ctx, widget->rect);
 
@@ -1835,11 +1860,11 @@ graph_view_handle_event(CuiWidget *widget, CuiEventType event_type)
         {
             if (graph_view->scrolling)
             {
-                int32_t count = app.filtered_wayland_message_count;
+                int32_t count = cui_max_int32(app.filtered_wayland_message_count - 1, 0);
 
                 int32_t bar_width = graph_view->px4 + graph_view->px1;
 
-                int64_t view_width = cui_rect_get_width(graph_view->graph_rect);
+                int64_t view_width = cui_rect_get_width(graph_view->graph_rect) - graph_view->label_width;
                 int64_t content_width = (int64_t) bar_width * (int64_t) count;
 
                 if (content_width > view_width)
@@ -3301,6 +3326,21 @@ CUI_PLATFORM_MAIN
                                               cui_make_sized_font_spec(CuiStringLiteral("Twemoji.Mozilla"),       app.font_size, app.line_height),
                                               cui_make_sized_font_spec(CuiStringLiteral("TwemojiMozilla"),        app.font_size, app.line_height),
                                               cui_make_sized_font_spec(CuiStringLiteral("seguiemj"),              app.font_size, app.line_height));
+
+    app.graph_view_font = cui_window_find_font(app.window,
+                                               // android
+                                               cui_make_sized_font_spec(CuiStringLiteral("CutiveMono"),            13.0f, 1.0f),
+                                               // all
+                                               cui_make_sized_font_spec(CuiStringLiteral("JetBrainsMono-Regular"), 13.0f, 1.0f),
+                                               cui_make_sized_font_spec(CuiStringLiteral("FiraCode-Regular"),      13.0f, 1.0f),
+                                               cui_make_sized_font_spec(CuiStringLiteral("CascadiaCode"),          13.0f, 1.0f),
+                                               cui_make_sized_font_spec(CuiStringLiteral("Courier New Bold"),      13.0f, 1.0f),
+                                               cui_make_sized_font_spec(CuiStringLiteral("consola"),               13.0f, 1.0f),
+                                               cui_make_sized_font_spec(CuiStringLiteral("DejaVuSansMono"),        13.0f, 1.0f),
+                                               // emoji fonts
+                                               cui_make_sized_font_spec(CuiStringLiteral("Twemoji.Mozilla"),       13.0f, 1.0f),
+                                               cui_make_sized_font_spec(CuiStringLiteral("TwemojiMozilla"),        13.0f, 1.0f),
+                                               cui_make_sized_font_spec(CuiStringLiteral("seguiemj"),              13.0f, 1.0f));
 
 
     create_user_interface(app.window, &app.widget_arena);

@@ -7,6 +7,7 @@
  - Show non-wayland messages
  - Filter indirect messages (e.g.: `.frame.done`)
  - Adopt new macOS Tahoe icon style
+ - Draw graph view Hz markers
 
 ### Changed
 
