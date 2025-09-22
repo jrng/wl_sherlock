@@ -39,6 +39,7 @@ static const CuiColor pink_background   = CuiHexColorLiteral(0xFF391A3E);
 static const CuiColor pink_foreground   = CuiHexColorLiteral(0xFFC344D9);
 
 static const int32_t SCROLL_ROW_OFFSET = 2;
+static const int64_t MAX_ID_DELTA = 100;
 
 typedef struct
 {
@@ -189,9 +190,11 @@ typedef struct
 
     CuiArena message_arena;
 
+    uint32_t next_highest_id;
     uint32_t generation_allocated;
     uint32_t *generations;
 
+    uint32_t server_next_highest_id;
     uint32_t server_generation_allocated;
     uint32_t *server_generations;
 
@@ -295,66 +298,86 @@ create_new_object_with_id(uint32_t id)
 {
     CuiAssert(id > 0);
 
-    uint32_t generation;
+    ObjectId object_id = 0;
 
     if (id < 0xFF000000)
     {
-        uint32_t index = id - 1;
-
-        if (index >= app.generation_allocated)
+        if (((int64_t) id - (int64_t) app.next_highest_id) < MAX_ID_DELTA)
         {
-            uint32_t old_allocated = app.generation_allocated;
-            app.generation_allocated = 64 * ((index + 63) / 64);
+            uint32_t index = id - 1;
 
-            uint32_t *old_generations = app.generations;
-            app.generations = (uint32_t *) cui_platform_allocate(app.generation_allocated * sizeof(*app.generations));
-
-            for (uint32_t i = 0; i < old_allocated; i += 1)
+            if (index >= app.generation_allocated)
             {
-                app.generations[i] = old_generations[i];
+                uint32_t old_allocated = app.generation_allocated;
+                app.generation_allocated = 64 * ((index + 63) / 64);
+
+                uint32_t *old_generations = app.generations;
+                app.generations = (uint32_t *) cui_platform_allocate(app.generation_allocated * sizeof(*app.generations));
+
+                for (uint32_t i = 0; i < old_allocated; i += 1)
+                {
+                    app.generations[i] = old_generations[i];
+                }
+
+                for (uint32_t i = old_allocated; i < app.generation_allocated; i += 1)
+                {
+                    app.generations[i] = 0;
+                }
+
+                cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
             }
 
-            for (uint32_t i = old_allocated; i < app.generation_allocated; i += 1)
-            {
-                app.generations[i] = 0;
-            }
+            app.generations[index] += 1;
+            uint32_t generation = app.generations[index];
 
-            cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
+            object_id = ((uint64_t) generation << 32) | (uint64_t) id;
+
+            app.next_highest_id = cui_max_uint32(app.next_highest_id, id + 1);
         }
-
-        app.generations[index] += 1;
-        generation = app.generations[index];
+        else
+        {
+            fprintf(stderr, "warning: object id %u is too far off the current id pool.\n", id);
+        }
     }
     else
     {
         uint32_t index = id & 0xFFFFFF;
 
-        if (index >= app.server_generation_allocated)
+        if (((int64_t) index - (int64_t) app.server_next_highest_id) < MAX_ID_DELTA)
         {
-            uint32_t old_allocated = app.server_generation_allocated;
-            app.server_generation_allocated = 64 * ((index + 63) / 64);
-
-            uint32_t *old_generations = app.server_generations;
-            app.server_generations = (uint32_t *) cui_platform_allocate(app.server_generation_allocated * sizeof(*app.server_generations));
-
-            for (uint32_t i = 0; i < old_allocated; i += 1)
+            if (index >= app.server_generation_allocated)
             {
-                app.server_generations[i] = old_generations[i];
+                uint32_t old_allocated = app.server_generation_allocated;
+                app.server_generation_allocated = 64 * ((index + 63) / 64);
+
+                uint32_t *old_generations = app.server_generations;
+                app.server_generations = (uint32_t *) cui_platform_allocate(app.server_generation_allocated * sizeof(*app.server_generations));
+
+                for (uint32_t i = 0; i < old_allocated; i += 1)
+                {
+                    app.server_generations[i] = old_generations[i];
+                }
+
+                for (uint32_t i = old_allocated; i < app.server_generation_allocated; i += 1)
+                {
+                    app.server_generations[i] = 0;
+                }
+
+                cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
             }
 
-            for (uint32_t i = old_allocated; i < app.server_generation_allocated; i += 1)
-            {
-                app.server_generations[i] = 0;
-            }
+            app.server_generations[index] += 1;
+            uint32_t generation = app.server_generations[index];
 
-            cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
+            object_id = ((uint64_t) generation << 32) | (uint64_t) id;
+
+            app.server_next_highest_id = cui_max_uint32(app.server_next_highest_id, index + 1);
         }
-
-        app.server_generations[index] += 1;
-        generation = app.server_generations[index];
+        else
+        {
+            fprintf(stderr, "warning: object id %u is too far off the current id pool.\n", id);
+        }
     }
-
-    ObjectId object_id = ((uint64_t) generation << 32) | (uint64_t) id;
 
     return object_id;
 }
@@ -3005,6 +3028,8 @@ load_wayland_file(CuiString wayland_filename)
 
         cui_arena_allocate(&app.message_arena, line_count * 512);
 
+        app.next_highest_id = 1;
+
         if (app.generation_allocated == 0)
         {
             app.generation_allocated = 4;
@@ -3015,6 +3040,8 @@ load_wayland_file(CuiString wayland_filename)
         {
             app.generations[i] = 0;
         }
+
+        app.server_next_highest_id = 0;
 
         if (app.server_generation_allocated == 0)
         {
