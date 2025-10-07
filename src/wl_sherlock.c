@@ -88,6 +88,7 @@ typedef struct
 
 typedef struct
 {
+    uint64_t bloom[4];
     uint32_t allocated;
     uint32_t count;
     Object *items;
@@ -2020,6 +2021,10 @@ graph_view_handle_event(CuiWidget *widget, CuiEventType event_type)
 static void
 filter_objects(ObjectList *object_list, ObjectList *result, CuiString message_name)
 {
+    result->bloom[0] = 0;
+    result->bloom[1] = 0;
+    result->bloom[2] = 0;
+    result->bloom[3] = 0;
     result->count = 0;
 
     for (uint32_t message_index = 0; message_index < app.message_count; message_index += 1)
@@ -2065,7 +2070,25 @@ filter_objects(ObjectList *object_list, ObjectList *result, CuiString message_na
 
                 if (created_object.id > 0)
                 {
-                    result->items[result->count] = created_object;
+                    uint32_t hash = (uint32_t) created_object.id & 0xFF;
+                    result->bloom[hash >> 6] |= (1 << (hash & 0x3F));
+
+                    uint32_t index = result->count;
+
+                    for (; index > 0; index -= 1)
+                    {
+                        if (result->items[index - 1].id <= created_object.id)
+                        {
+                            break;
+                        }
+                    }
+
+                    for (uint32_t i = result->count; i > index; i -= 1)
+                    {
+                        result->items[i] = result->items[i - 1];
+                    }
+
+                    result->items[index] = created_object;
                     result->count += 1;
                 }
             }
@@ -2087,7 +2110,31 @@ filter_messages(ObjectList *object_list, CuiString message_name)
         {
             bool matches = false;
 
-            for (uint32_t object_index = 0; object_index < object_list->count; object_index += 1)
+            uint32_t hash = (uint32_t) message->id & 0xFF;
+
+            if (!(object_list->bloom[hash >> 6] & (1 << (hash & 0x3F))))
+            {
+                continue;
+            }
+
+            uint32_t start_index = 0;
+            uint32_t end_index = object_list->count;
+
+            while ((end_index - start_index) > 2)
+            {
+                uint32_t mid_index = (start_index + end_index) / 2;
+
+                if (object_list->items[mid_index].id > message->id)
+                {
+                    end_index = mid_index;
+                }
+                else
+                {
+                    start_index = mid_index;
+                }
+            }
+
+            for (uint32_t object_index = start_index; object_index < end_index; object_index += 1)
             {
                 Object *object = object_list->items + object_index;
 
@@ -2155,6 +2202,10 @@ apply_filter(void)
 {
     uint32_t filtered_object_index = 0;
 
+    app.filtered_objects[filtered_object_index].bloom[0] = 0xFFFFFFFFFFFFFFFF;
+    app.filtered_objects[filtered_object_index].bloom[1] = 0xFFFFFFFFFFFFFFFF;
+    app.filtered_objects[filtered_object_index].bloom[2] = 0xFFFFFFFFFFFFFFFF;
+    app.filtered_objects[filtered_object_index].bloom[3] = 0xFFFFFFFFFFFFFFFF;
     app.filtered_objects[filtered_object_index].count = 0;
     app.filtered_objects[filtered_object_index].items[app.filtered_objects[filtered_object_index].count].interface_name = app.filter.object.interface_name;
     app.filtered_objects[filtered_object_index].items[app.filtered_objects[filtered_object_index].count].id = app.filter.object.id;
