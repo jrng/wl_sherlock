@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-10-07
+
 ### Changed
 
   - Ignore object ids that are too far off
