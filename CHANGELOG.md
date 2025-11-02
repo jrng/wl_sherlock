@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2025-11-02
+
+### Added
+
+  - Add xdg-decoration-v1 formating
+
+### Changed
+
+  - Interface name is now filtered by contains instead of starts_with
+
 ## [0.4.1] - 2025-10-07
 
 ### Changed
