@@ -2080,8 +2080,7 @@ filter_objects(ObjectList *object_list, ObjectList *result, CuiString message_na
                     continue;
                 }
 
-                // TODO: change to contains
-                if ((object->interface_name.count > 0) && !cui_string_starts_with(message->interface_name, object->interface_name))
+                if ((object->interface_name.count > 0) && !cui_string_contains(message->interface_name, object->interface_name))
                 {
                     continue;
                 }
@@ -2179,8 +2178,7 @@ filter_messages(ObjectList *object_list, CuiString message_name)
                     continue;
                 }
 
-                // TODO: change to contains
-                if ((object->interface_name.count > 0) && !cui_string_starts_with(message->interface_name, object->interface_name))
+                if ((object->interface_name.count > 0) && !cui_string_contains(message->interface_name, object->interface_name))
                 {
                     continue;
                 }
