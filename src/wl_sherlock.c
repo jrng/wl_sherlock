@@ -953,6 +953,38 @@ wayland_buffer_backend_format_format(Argument *dst, Argument *src, CuiString lab
 }
 
 static void
+zxdg_toplevel_decoration_v1_mode_format(Argument *dst, Argument *src, CuiString label)
+{
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    uint32_t mode = (uint32_t) dst->value.i;
+
+    switch (mode)
+    {
+        case 1: dst->value_str = CuiStringLiteral("ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE"); break;
+        case 2: dst->value_str = CuiStringLiteral("ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE"); break;
+
+        default:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%u"), mode);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
 format_message(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
 {
     CuiAssert(argument_count == message_spec->argument_count);

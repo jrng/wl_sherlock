@@ -112,6 +112,14 @@ static ArgumentSpec wayland_buffer_backend__create_buffer__arguments[] = {
     { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("stride"), .format_func = 0                                    },
 };
 
+static ArgumentSpec zxdg_toplevel_decoration_v1__set_mode__arguments[] = {
+    { .type = ARGUMENT_TYPE_INTEGER, .label = { 0, 0 }, .format_func = zxdg_toplevel_decoration_v1_mode_format },
+};
+
+static ArgumentSpec zxdg_toplevel_decoration_v1__configure__arguments[] = {
+    { .type = ARGUMENT_TYPE_INTEGER, .label = { 0, 0 }, .format_func = zxdg_toplevel_decoration_v1_mode_format },
+};
+
 // This only lists labels for messages that have more than 1
 // argument as non or single argument messages are pretty self-explanatory.
 
@@ -220,5 +228,19 @@ static MessageSpec message_specs[] = {
         .message_format_func = 0,
         .argument_count      = CuiArrayCount(wayland_buffer_backend__create_buffer__arguments),
         .arguments           = wayland_buffer_backend__create_buffer__arguments,
+    },
+    {
+        .interface_name      = CuiStringConstant("zxdg_toplevel_decoration_v1"),
+        .message_name        = CuiStringConstant("set_mode"),
+        .message_format_func = 0,
+        .argument_count      = CuiArrayCount(zxdg_toplevel_decoration_v1__set_mode__arguments),
+        .arguments           = zxdg_toplevel_decoration_v1__set_mode__arguments,
+    },
+    {
+        .interface_name      = CuiStringConstant("zxdg_toplevel_decoration_v1"),
+        .message_name        = CuiStringConstant("configure"),
+        .message_format_func = 0,
+        .argument_count      = CuiArrayCount(zxdg_toplevel_decoration_v1__configure__arguments),
+        .arguments           = zxdg_toplevel_decoration_v1__configure__arguments,
     },
 };
