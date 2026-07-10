@@ -114,7 +114,7 @@ jobs:
         shell: cmd
         run: |
           cd cui
-          call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat"
+          call "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat"
           cl -nologo -Fec_make.exe -Foc_make.obj c_make.c
           c_make.exe setup build --verbose build_type=reldebug
           c_make.exe build build --verbose --sequential
@@ -128,7 +128,7 @@ jobs:
         shell: cmd
         run: |
           cd wl_sherlock
-          call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat"
+          call "C:\\Program Files\\Microsoft Visual Studio\\18\\Enterprise\\VC\\Auxiliary\\Build\\vcvars64.bat"
           cl -nologo -Fec_make.exe -Foc_make.obj c_make.c
           c_make.exe setup build --verbose build_type=reldebug
           c_make.exe build build --verbose --sequential
