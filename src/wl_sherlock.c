@@ -310,7 +310,7 @@ create_new_object_with_id(uint32_t id)
             if (index >= app.generation_allocated)
             {
                 uint32_t old_allocated = app.generation_allocated;
-                app.generation_allocated = 64 * ((index + 63) / 64);
+                app.generation_allocated = 64 * ((index / 64) + 1);
 
                 uint32_t *old_generations = app.generations;
                 app.generations = (uint32_t *) cui_platform_allocate(app.generation_allocated * sizeof(*app.generations));
@@ -349,7 +349,7 @@ create_new_object_with_id(uint32_t id)
             if (index >= app.server_generation_allocated)
             {
                 uint32_t old_allocated = app.server_generation_allocated;
-                app.server_generation_allocated = 64 * ((index + 63) / 64);
+                app.server_generation_allocated = 64 * ((index / 64) + 1);
 
                 uint32_t *old_generations = app.server_generations;
                 app.server_generations = (uint32_t *) cui_platform_allocate(app.server_generation_allocated * sizeof(*app.server_generations));
