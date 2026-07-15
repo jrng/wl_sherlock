@@ -1340,8 +1340,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     float w;
 
-    w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("Timestamp"));
-    cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) timestamp_column_width - w), (float) y + header_baseline, CuiStringLiteral("Timestamp"), CuiHexColor(0xFFafb7c4));
+    w = cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("Time (ms)"));
+    cui_draw_fill_string(ctx, app.list_view_font, (float) x + 0.5f * ((float) timestamp_column_width - w), (float) y + header_baseline, CuiStringLiteral("Time (ms)"), CuiHexColor(0xFFafb7c4));
     x += timestamp_column_width;
 
     cui_draw_fill_rect(ctx, cui_make_rect(x, header_rect.min.y, x + list_view->px1, header_rect.max.y), color_theme->default_border);
