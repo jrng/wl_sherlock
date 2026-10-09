@@ -84,14 +84,14 @@ typedef struct
 {
     CuiString interface_name;
     ObjectId id;
-} Object;
+} ObjectReference;
 
 typedef struct
 {
     uint64_t bloom[4];
     uint32_t allocated;
     uint32_t count;
-    Object *items;
+    ObjectReference *items;
 } ObjectList;
 
 typedef enum
@@ -109,7 +109,7 @@ typedef struct
     CuiString message_name;
     ObjectId id;
 
-    Object created_object;
+    ObjectReference created_object;
 
     bool sent;
 
@@ -175,7 +175,7 @@ typedef struct
 
 typedef struct
 {
-    Object object;
+    ObjectReference object;
     uint32_t message_count;
     CuiString messages[3];
 } Filter;
@@ -2069,7 +2069,7 @@ filter_objects(ObjectList *object_list, ObjectList *result, CuiString message_na
 
             for (uint32_t object_index = 0; object_index < object_list->count; object_index += 1)
             {
-                Object *object = object_list->items + object_index;
+                ObjectReference *object = object_list->items + object_index;
 
                 uint32_t generation = (uint32_t) ((object->id >> 32) & 0xFFFFFFFF);
                 uint32_t object_id = (uint32_t) (object->id & 0xFFFFFFFF);
@@ -2097,7 +2097,7 @@ filter_objects(ObjectList *object_list, ObjectList *result, CuiString message_na
 
             if (matches)
             {
-                Object created_object = message->created_object;
+                ObjectReference created_object = message->created_object;
 
                 if (created_object.id > 0)
                 {
@@ -2167,7 +2167,7 @@ filter_messages(ObjectList *object_list, CuiString message_name)
 
             for (uint32_t object_index = start_index; object_index < end_index; object_index += 1)
             {
-                Object *object = object_list->items + object_index;
+                ObjectReference *object = object_list->items + object_index;
 
                 uint32_t generation = (uint32_t) ((object->id >> 32) & 0xFFFFFFFF);
                 uint32_t object_id = (uint32_t) (object->id & 0xFFFFFFFF);
@@ -2924,7 +2924,7 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
         return false;
     }
 
-    Object created_object;
+    ObjectReference created_object;
     created_object.interface_name = cui_make_string(0, 0);
     created_object.id = 0;
 
@@ -3155,7 +3155,7 @@ load_wayland_file(CuiString wayland_filename)
         {
             app.filtered_objects[i].allocated = line_count;
             app.filtered_objects[i].count = 0;
-            app.filtered_objects[i].items = (Object *) cui_platform_allocate(app.filtered_objects[i].allocated * sizeof(*app.filtered_objects[i].items));
+            app.filtered_objects[i].items = (ObjectReference *) cui_platform_allocate(app.filtered_objects[i].allocated * sizeof(*app.filtered_objects[i].items));
         }
 
         uint32_t at_count = 0;
