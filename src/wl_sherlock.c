@@ -1652,7 +1652,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
             x += space_w;
 
-            int32_t type_rect_y = y + (row_height - type_rect_w) / 2;
+            int32_t type_rect_y = y + (row_height - list_view->px1 - type_rect_w) / 2;
             CuiRect type_rect = cui_make_rect(x, type_rect_y, x + type_rect_w, type_rect_y + type_rect_w);
 
             if (message->sent)
