@@ -4,10 +4,40 @@ static ArgumentSpec wl_display__error__arguments[] = {
     { .type = ARGUMENT_TYPE_STRING , .label = CuiStringConstant("message")  , .format_func = 0 },
 };
 
+static ArgumentSpec wl_registry__bind__arguments[] = {
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("name")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_STRING , .label = CuiStringConstant("interface"), .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("version")  , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_NEW_ID , .label = { 0, 0 }                      , .format_func = 0 },
+};
+
 static ArgumentSpec wl_registry__global__arguments[] = {
     { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("name")     , .format_func = 0 },
     { .type = ARGUMENT_TYPE_STRING , .label = CuiStringConstant("interface"), .format_func = 0 },
     { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("version")  , .format_func = 0 },
+};
+
+static ArgumentSpec wl_output__mode__arguments[] = {
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("flags")  , .format_func = wl_output_flags_format   },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("width")  , .format_func = 0                        },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("height") , .format_func = 0                        },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("refresh"), .format_func = wl_output_refresh_format },
+};
+
+static ArgumentSpec wl_output__geometry__arguments[] = {
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("x")        , .format_func = 0                          },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("y")        , .format_func = 0                          },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("width_mm") , .format_func = 0                          },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("height_mm"), .format_func = 0                          },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("subpixel") , .format_func = wl_output_subpixel_format  },
+    { .type = ARGUMENT_TYPE_STRING , .label = CuiStringConstant("maker")    , .format_func = 0                          },
+    { .type = ARGUMENT_TYPE_STRING , .label = CuiStringConstant("model")    , .format_func = 0                          },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("transform"), .format_func = wl_output_transform_format },
+};
+
+static ArgumentSpec wl_keyboard__repeat_info__arguments[] = {
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("rate") , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("delay"), .format_func = 0 },
 };
 
 static ArgumentSpec wl_shm__format__arguments[] = {
@@ -133,10 +163,38 @@ static MessageSpec message_specs[] = {
     },
     {
         .interface_name      = CuiStringConstant("wl_registry"),
+        .message_name        = CuiStringConstant("bind"),
+        .message_format_func = 0,
+        .argument_count      = CuiArrayCount(wl_registry__bind__arguments),
+        .arguments           = wl_registry__bind__arguments,
+    },
+    {
+        .interface_name      = CuiStringConstant("wl_registry"),
         .message_name        = CuiStringConstant("global"),
         .message_format_func = 0,
         .argument_count      = CuiArrayCount(wl_registry__global__arguments),
         .arguments           = wl_registry__global__arguments,
+    },
+    {
+        .interface_name      = CuiStringConstant("wl_output"),
+        .message_name        = CuiStringConstant("mode"),
+        .message_format_func = 0,
+        .argument_count      = CuiArrayCount(wl_output__mode__arguments),
+        .arguments           = wl_output__mode__arguments,
+    },
+    {
+        .interface_name      = CuiStringConstant("wl_output"),
+        .message_name        = CuiStringConstant("geometry"),
+        .message_format_func = 0,
+        .argument_count      = CuiArrayCount(wl_output__geometry__arguments),
+        .arguments           = wl_output__geometry__arguments,
+    },
+    {
+        .interface_name      = CuiStringConstant("wl_keyboard"),
+        .message_name        = CuiStringConstant("repeat_info"),
+        .message_format_func = 0,
+        .argument_count      = CuiArrayCount(wl_keyboard__repeat_info__arguments),
+        .arguments           = wl_keyboard__repeat_info__arguments,
     },
     {
         .interface_name      = CuiStringConstant("wl_shm"),

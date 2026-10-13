@@ -492,6 +492,163 @@ format_argument(Argument *dst, Argument *src, CuiString label)
 }
 
 static void
+wl_output_flags_format(Argument *dst, Argument *src, CuiString label)
+{
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    if (dst->value.i)
+    {
+        bool first = true;
+
+        if (dst->value.i & 0x1)
+        {
+            cui_string_builder_append_string(&string_builder, CuiStringLiteral("WL_OUTPUT_MODE_CURRENT"));
+            first = false;
+        }
+
+        if (dst->value.i & 0x2)
+        {
+            if (first)
+            {
+                cui_string_builder_append_string(&string_builder, CuiStringLiteral("WL_OUTPUT_MODE_CURRENT"));
+                first = false;
+            }
+            else
+            {
+                cui_string_builder_append_string(&string_builder, CuiStringLiteral(" | WL_OUTPUT_MODE_PREFERRED"));
+            }
+        }
+
+        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+    }
+    else
+    {
+        dst->value_str = CuiStringLiteral("0");
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
+wl_output_refresh_format(Argument *dst, Argument *src, CuiString label)
+{
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    int32_t refresh = dst->value.i;
+
+    if (refresh % 10)
+    {
+        cui_string_builder_print(&string_builder, CuiStringLiteral("%u.%03u Hz"), refresh / 1000, refresh % 1000);
+    }
+    else if (refresh % 100)
+    {
+        cui_string_builder_print(&string_builder, CuiStringLiteral("%u.%02u Hz"), refresh / 1000, refresh % 1000);
+    }
+    else
+    {
+        cui_string_builder_print(&string_builder, CuiStringLiteral("%u.%u Hz"), refresh / 1000, refresh % 1000);
+    }
+
+    dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
+wl_output_subpixel_format(Argument *dst, Argument *src, CuiString label)
+{
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    uint32_t format = (uint32_t) dst->value.i;
+
+    switch (format)
+    {
+        case 0: dst->value_str = CuiStringLiteral("WL_OUTPUT_SUBPIXEL_UNKNOWN");        break;
+        case 1: dst->value_str = CuiStringLiteral("WL_OUTPUT_SUBPIXEL_NONE");           break;
+        case 2: dst->value_str = CuiStringLiteral("WL_OUTPUT_SUBPIXEL_HORIZONTAL_RGB"); break;
+        case 3: dst->value_str = CuiStringLiteral("WL_OUTPUT_SUBPIXEL_HORIZONTAL_BGR"); break;
+        case 4: dst->value_str = CuiStringLiteral("WL_OUTPUT_SUBPIXEL_VERTICAL_RGB");   break;
+        case 5: dst->value_str = CuiStringLiteral("WL_OUTPUT_SUBPIXEL_VERTICAL_BGR");   break;
+
+        default:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%u"), format);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
+wl_output_transform_format(Argument *dst, Argument *src, CuiString label)
+{
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    uint32_t format = (uint32_t) dst->value.i;
+
+    switch (format)
+    {
+        case 0: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_NORMAL");      break;
+        case 1: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_90");          break;
+        case 2: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_180");         break;
+        case 3: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_270");         break;
+        case 4: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_FLIPPED");     break;
+        case 5: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_FLIPPED_90");  break;
+        case 6: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_FLIPPED_180"); break;
+        case 7: dst->value_str = CuiStringLiteral("WL_OUTPUT_TRANSFORM_FLIPPED_270"); break;
+
+        default:
+        {
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%u"), format);
+            dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+        } break;
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
 wl_shm_format_format(Argument *dst, Argument *src, CuiString label)
 {
     CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
