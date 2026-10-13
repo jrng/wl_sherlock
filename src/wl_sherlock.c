@@ -47,6 +47,8 @@ typedef struct
     int32_t fractional_part;
 } ScrollOffset;
 
+typedef uint64_t ObjectId;
+
 typedef enum
 {
     ARGUMENT_TYPE_NIL     = 0,
@@ -68,7 +70,7 @@ typedef struct
         int64_t i;
         int32_t f;
         int32_t fd;
-        uint32_t id;
+        ObjectId id;
         uint32_t count;
         CuiString str;
     } value;
@@ -77,8 +79,6 @@ typedef struct
     CuiString label;
     CuiString value_str;
 } Argument;
-
-typedef uint64_t ObjectId;
 
 typedef struct
 {
@@ -477,13 +477,13 @@ format_argument(Argument *dst, Argument *src, CuiString label)
 
         case ARGUMENT_TYPE_OBJECT:
         {
-            cui_string_builder_print(&string_builder, CuiStringLiteral("%S#%u"), dst->interface_name, dst->value.id);
+            cui_string_builder_print(&string_builder, CuiStringLiteral("%S#%u"), dst->interface_name, (uint32_t) dst->value.id);
             dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
         } break;
 
         case ARGUMENT_TYPE_NEW_ID:
         {
-            cui_string_builder_print(&string_builder, CuiStringLiteral("new id %S#%u"), dst->interface_name, dst->value.id);
+            cui_string_builder_print(&string_builder, CuiStringLiteral("new id %S#%u"), dst->interface_name, (uint32_t) dst->value.id);
             dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
         } break;
     }
@@ -2879,7 +2879,7 @@ parse_argument(CuiString *str, Argument *argument)
 
         argument->type = ARGUMENT_TYPE_NEW_ID;
         argument->interface_name = interf;
-        argument->value.id = (uint32_t) new_id;
+        argument->value.id = (ObjectId) (uint32_t) new_id;
     }
     else if (cui_string_starts_with(*str, CuiStringLiteral("array")))
     {
@@ -2948,9 +2948,11 @@ parse_argument(CuiString *str, Argument *argument)
             return false;
         }
 
+        uint32_t generation = get_id_generation((uint32_t) id);
+
         argument->type = ARGUMENT_TYPE_OBJECT;
         argument->interface_name = interf;
-        argument->value.id = (uint32_t) id;
+        argument->value.id = ((uint64_t) generation << 32) | (uint64_t) id;
     }
     else
     {
@@ -3114,8 +3116,11 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
                 fprintf(stderr, "warning: message creates more than 1 object.\n");
             }
 
+            uint32_t object_id = (uint32_t) argument->value.id;
+            argument->value.id = create_new_object_with_id(object_id);
+
             created_object.interface_name = argument->interface_name;
-            created_object.id = create_new_object_with_id(argument->value.id);
+            created_object.id = argument->value.id;
         }
 
         if (cui_string_starts_with(str, CuiStringLiteral(",")))
