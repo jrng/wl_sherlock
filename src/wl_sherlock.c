@@ -220,6 +220,7 @@ typedef struct
     Filter filter;
     uint32_t filtered_item_index;
 
+    bool is_server_log;
     CuiString id_character;
 
     CuiWindow *window;
@@ -2963,7 +2964,7 @@ parse_argument(CuiString *str, Argument *argument)
 }
 
 static inline bool
-parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint32_t *hash_count)
+parse_wayland_message(Message *message, CuiString str, int32_t *at_vs_hash, int32_t *client_vs_server)
 {
     str = cui_string_trim(str);
 
@@ -3042,12 +3043,12 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
 
     if (cui_string_starts_with(str, CuiStringLiteral("#")))
     {
-        *hash_count += 1;
+        *at_vs_hash += 1;
         cui_string_advance(&str, 1);
     }
     else if (cui_string_starts_with(str, CuiStringLiteral("@")))
     {
-        *at_count += 1;
+        *at_vs_hash -= 1;
         cui_string_advance(&str, 1);
     }
     else
@@ -3180,6 +3181,20 @@ parse_wayland_message(Message *message, CuiString str, uint32_t *at_count, uint3
     else
     {
         format_message_without_spec(message, argument_count, arguments);
+    }
+
+    if (cui_string_equals(message->interface_name, CuiStringLiteral("wl_display")) &&
+        (cui_string_equals(message->message_name, CuiStringLiteral("get_registry")) ||
+         cui_string_equals(message->message_name, CuiStringLiteral("sync"))))
+    {
+        if (message->sent)
+        {
+            *client_vs_server -= 1;
+        }
+        else
+        {
+            *client_vs_server += 1;
+        }
     }
 
     return true;
@@ -3320,8 +3335,8 @@ load_wayland_file(CuiString wayland_filename)
             app.filtered_objects[i].items = (ObjectReference *) cui_platform_allocate(app.filtered_objects[i].allocated * sizeof(*app.filtered_objects[i].items));
         }
 
-        uint32_t at_count = 0;
-        uint32_t hash_count = 0;
+        int32_t at_vs_hash = 0;
+        int32_t client_vs_server = 0;
 
         CuiString cursor = app.file_content;
 
@@ -3333,7 +3348,7 @@ load_wayland_file(CuiString wayland_filename)
             Message *message = app.messages + message_index;
             app.message_count += 1;
 
-            if (parse_wayland_message(message, str, &at_count, &hash_count))
+            if (parse_wayland_message(message, str, &at_vs_hash, &client_vs_server))
             {
                 app.wayland_messages[app.wayland_message_count] = message_index;
                 app.wayland_message_count += 1;
@@ -3345,13 +3360,22 @@ load_wayland_file(CuiString wayland_filename)
             }
         }
 
-        if (at_count > hash_count)
+        if (at_vs_hash < 0)
         {
             app.id_character = CuiStringLiteral("@");
         }
         else
         {
             app.id_character = CuiStringLiteral("#");
+        }
+
+        if (client_vs_server > 0)
+        {
+            app.is_server_log = true;
+        }
+        else
+        {
+            app.is_server_log = false;
         }
 
         if (!app.file_loaded)
