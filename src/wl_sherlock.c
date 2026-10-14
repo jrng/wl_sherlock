@@ -314,7 +314,7 @@ create_new_object_with_id(uint32_t id)
                 app.generation_allocated = 64 * ((index / 64) + 1);
 
                 uint32_t *old_generations = app.generations;
-                app.generations = (uint32_t *) cui_platform_allocate(app.generation_allocated * sizeof(*app.generations));
+                app.generations = cui_alloc_array(&app.message_arena, uint32_t, app.generation_allocated, CuiDefaultAllocationParams());
 
                 for (uint32_t i = 0; i < old_allocated; i += 1)
                 {
@@ -325,8 +325,6 @@ create_new_object_with_id(uint32_t id)
                 {
                     app.generations[i] = 0;
                 }
-
-                cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
             }
 
             app.generations[index] += 1;
@@ -353,7 +351,7 @@ create_new_object_with_id(uint32_t id)
                 app.server_generation_allocated = 64 * ((index / 64) + 1);
 
                 uint32_t *old_generations = app.server_generations;
-                app.server_generations = (uint32_t *) cui_platform_allocate(app.server_generation_allocated * sizeof(*app.server_generations));
+                app.server_generations = cui_alloc_array(&app.message_arena, uint32_t, app.server_generation_allocated, CuiDefaultAllocationParams());
 
                 for (uint32_t i = 0; i < old_allocated; i += 1)
                 {
@@ -364,8 +362,6 @@ create_new_object_with_id(uint32_t id)
                 {
                     app.server_generations[i] = 0;
                 }
-
-                cui_platform_deallocate(old_generations, old_allocated * sizeof(*old_generations));
             }
 
             app.server_generations[index] += 1;
@@ -3223,44 +3219,6 @@ load_wayland_file(CuiString wayland_filename)
             cui_arena_deallocate(&app.message_arena);
         }
 
-        if (app.message_allocated)
-        {
-            cui_platform_deallocate(app.messages, app.message_allocated * sizeof(*app.messages));
-            app.message_allocated = 0;
-            app.messages = 0;
-        }
-
-        if (app.wayland_message_allocated)
-        {
-            cui_platform_deallocate(app.wayland_messages, app.wayland_message_allocated * sizeof(*app.wayland_messages));
-            app.wayland_message_allocated = 0;
-            app.wayland_messages = 0;
-        }
-
-        if (app.filtered_message_allocated)
-        {
-            cui_platform_deallocate(app.filtered_messages, app.filtered_message_allocated * sizeof(*app.filtered_messages));
-            app.filtered_message_allocated = 0;
-            app.filtered_messages = 0;
-        }
-
-        if (app.filtered_wayland_message_allocated)
-        {
-            cui_platform_deallocate(app.filtered_wayland_messages, app.filtered_wayland_message_allocated * sizeof(*app.filtered_wayland_messages));
-            app.filtered_wayland_message_allocated = 0;
-            app.filtered_wayland_messages = 0;
-        }
-
-        for (uint32_t i = 0; i < CuiArrayCount(app.filtered_objects); i += 1)
-        {
-            if (app.filtered_objects[i].allocated)
-            {
-                cui_platform_deallocate(app.filtered_objects[i].items, app.filtered_objects[i].allocated * sizeof(*app.filtered_objects[i].items));
-                app.filtered_objects[i].allocated = 0;
-                app.filtered_objects[i].items = 0;
-            }
-        }
-
         if (app.file_content.count > 0)
         {
             cui_platform_deallocate(app.file_content.data, app.file_content.count);
@@ -3287,52 +3245,34 @@ load_wayland_file(CuiString wayland_filename)
         cui_arena_allocate(&app.message_arena, line_count * 512);
 
         app.next_highest_id = 1;
-
-        if (app.generation_allocated == 0)
-        {
-            app.generation_allocated = 4;
-            app.generations = (uint32_t *) cui_platform_allocate(app.generation_allocated * sizeof(*app.generations));
-        }
-
-        for (uint32_t i = 0; i < app.generation_allocated; i += 1)
-        {
-            app.generations[i] = 0;
-        }
+        app.generation_allocated = 0;
+        app.generations = 0;
 
         app.server_next_highest_id = 0;
-
-        if (app.server_generation_allocated == 0)
-        {
-            app.server_generation_allocated = 4;
-            app.server_generations = (uint32_t *) cui_platform_allocate(app.server_generation_allocated * sizeof(*app.server_generations));
-        }
-
-        for (uint32_t i = 0; i < app.server_generation_allocated; i += 1)
-        {
-            app.server_generations[i] = 0;
-        }
+        app.server_generation_allocated = 0;
+        app.server_generations = 0;
 
         app.message_allocated = line_count;
         app.message_count = 0;
-        app.messages = (Message *) cui_platform_allocate(app.message_allocated * sizeof(*app.messages));
+        app.messages = cui_alloc_array(&app.message_arena, Message, app.message_allocated, CuiDefaultAllocationParams());
 
         app.wayland_message_allocated = line_count;
         app.wayland_message_count = 0;
-        app.wayland_messages = (uint32_t *) cui_platform_allocate(app.wayland_message_allocated * sizeof(*app.wayland_messages));
+        app.wayland_messages = cui_alloc_array(&app.message_arena, uint32_t, app.wayland_message_allocated, CuiDefaultAllocationParams());
 
         app.filtered_message_allocated = line_count;
         app.filtered_message_count = 0;
-        app.filtered_messages = (uint32_t *) cui_platform_allocate(app.filtered_message_allocated * sizeof(*app.filtered_messages));
+        app.filtered_messages = cui_alloc_array(&app.message_arena, uint32_t, app.filtered_message_allocated, CuiDefaultAllocationParams());
 
         app.filtered_wayland_message_allocated = line_count;
         app.filtered_wayland_message_count = 0;
-        app.filtered_wayland_messages = (FilterItem *) cui_platform_allocate(app.filtered_wayland_message_allocated * sizeof(*app.filtered_wayland_messages));
+        app.filtered_wayland_messages = cui_alloc_array(&app.message_arena, FilterItem, app.filtered_wayland_message_allocated, CuiDefaultAllocationParams());
 
         for (uint32_t i = 0; i < CuiArrayCount(app.filtered_objects); i += 1)
         {
             app.filtered_objects[i].allocated = line_count;
             app.filtered_objects[i].count = 0;
-            app.filtered_objects[i].items = (ObjectReference *) cui_platform_allocate(app.filtered_objects[i].allocated * sizeof(*app.filtered_objects[i].items));
+            app.filtered_objects[i].items = cui_alloc_array(&app.message_arena, ObjectReference, app.filtered_objects[i].allocated, CuiDefaultAllocationParams());
         }
 
         int32_t at_vs_hash = 0;
