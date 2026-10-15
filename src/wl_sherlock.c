@@ -182,6 +182,18 @@ typedef struct
 
 typedef struct
 {
+    CuiString interface_name;
+} Object;
+
+typedef struct
+{
+    uint32_t generation; // this is equal to the count of objects
+    uint32_t allocated;
+    Object *objects;
+} ObjectPool;
+
+typedef struct
+{
     CuiArena temporary_memory;
     CuiArena widget_arena;
     CuiArena title_arena;
@@ -192,12 +204,12 @@ typedef struct
     CuiArena message_arena;
 
     uint32_t next_highest_id;
-    uint32_t generation_allocated;
-    uint32_t *generations;
+    uint32_t object_pool_allocated;
+    ObjectPool *object_pools;
 
     uint32_t server_next_highest_id;
-    uint32_t server_generation_allocated;
-    uint32_t *server_generations;
+    uint32_t server_object_pool_allocated;
+    ObjectPool *server_object_pools;
 
     uint32_t message_allocated;
     uint32_t message_count;
@@ -275,28 +287,58 @@ get_id_generation(uint32_t id)
     {
         uint32_t index = id - 1;
 
-        if (index >= app.generation_allocated)
+        if (index >= app.object_pool_allocated)
         {
             return 0;
         }
 
-        return app.generations[index];
+        return app.object_pools[index].generation;
     }
     else
     {
         uint32_t index = id & 0xFFFFFF;
 
-        if (index >= app.server_generation_allocated)
+        if (index >= app.server_object_pool_allocated)
         {
             return 0;
         }
 
-        return app.server_generations[index];
+        return app.server_object_pools[index].generation;
+    }
+}
+
+static Object *
+get_object_from_id(ObjectId object_id)
+{
+    uint32_t generation = (uint32_t) (object_id >> 32);
+    uint32_t id         = (uint32_t) object_id;
+
+    if (id < 0xFF000000)
+    {
+        CuiAssert(id < app.next_highest_id);
+
+        uint32_t index = id - 1;
+
+        CuiAssert(generation > 0);
+        CuiAssert(generation <= app.object_pools[index].generation);
+
+        return app.object_pools[index].objects + (generation - 1);
+    }
+    else
+    {
+        uint32_t index = id & 0xFFFFFF;
+
+        CuiAssert(index < app.server_next_highest_id);
+
+        CuiAssert(generation > 0);
+        CuiAssert(generation <= app.server_object_pools[index].generation);
+
+        return app.server_object_pools[index].objects + (generation - 1);
     }
 }
 
 static ObjectId
-create_new_object_with_id(uint32_t id)
+create_new_object_with_id(uint32_t id, CuiString interface_name)
 {
     CuiAssert(id > 0);
 
@@ -308,27 +350,47 @@ create_new_object_with_id(uint32_t id)
         {
             uint32_t index = id - 1;
 
-            if (index >= app.generation_allocated)
+            if (index >= app.object_pool_allocated)
             {
-                uint32_t old_allocated = app.generation_allocated;
-                app.generation_allocated = 64 * ((index / 64) + 1);
+                uint32_t old_allocated = app.object_pool_allocated;
+                app.object_pool_allocated = 64 * ((index / 64) + 1);
 
-                uint32_t *old_generations = app.generations;
-                app.generations = cui_alloc_array(&app.message_arena, uint32_t, app.generation_allocated, CuiDefaultAllocationParams());
+                ObjectPool *old_object_pools = app.object_pools;
+                app.object_pools = cui_alloc_array(&app.message_arena, ObjectPool, app.object_pool_allocated, CuiDefaultAllocationParams());
 
                 for (uint32_t i = 0; i < old_allocated; i += 1)
                 {
-                    app.generations[i] = old_generations[i];
+                    app.object_pools[i] = old_object_pools[i];
                 }
 
-                for (uint32_t i = old_allocated; i < app.generation_allocated; i += 1)
+                for (uint32_t i = old_allocated; i < app.object_pool_allocated; i += 1)
                 {
-                    app.generations[i] = 0;
+                    app.object_pools[i].generation = 0;
+                    app.object_pools[i].allocated = 4;
+                    app.object_pools[i].objects = cui_alloc_array(&app.message_arena, Object, app.object_pools[i].allocated, CuiDefaultAllocationParams());
                 }
             }
 
-            app.generations[index] += 1;
-            uint32_t generation = app.generations[index];
+            uint32_t object_index = app.object_pools[index].generation;
+
+            if (object_index == app.object_pools[index].allocated)
+            {
+                uint32_t old_allocated = app.object_pools[index].allocated;
+                app.object_pools[index].allocated = 64 * ((object_index / 64) + 1);
+
+                Object *old_objects = app.object_pools[index].objects;
+                app.object_pools[index].objects = cui_alloc_array(&app.message_arena, Object, app.object_pools[index].allocated, CuiDefaultAllocationParams());
+
+                for (uint32_t i = 0; i < old_allocated; i += 1)
+                {
+                    app.object_pools[index].objects[i] = old_objects[i];
+                }
+            }
+
+            app.object_pools[index].generation += 1;
+            uint32_t generation = app.object_pools[index].generation;
+
+            app.object_pools[index].objects[object_index].interface_name = interface_name;
 
             object_id = ((uint64_t) generation << 32) | (uint64_t) id;
 
@@ -345,27 +407,47 @@ create_new_object_with_id(uint32_t id)
 
         if (((int64_t) index - (int64_t) app.server_next_highest_id) < MAX_ID_DELTA)
         {
-            if (index >= app.server_generation_allocated)
+            if (index >= app.server_object_pool_allocated)
             {
-                uint32_t old_allocated = app.server_generation_allocated;
-                app.server_generation_allocated = 64 * ((index / 64) + 1);
+                uint32_t old_allocated = app.server_object_pool_allocated;
+                app.server_object_pool_allocated = 64 * ((index / 64) + 1);
 
-                uint32_t *old_generations = app.server_generations;
-                app.server_generations = cui_alloc_array(&app.message_arena, uint32_t, app.server_generation_allocated, CuiDefaultAllocationParams());
+                ObjectPool *old_object_pools = app.server_object_pools;
+                app.server_object_pools = cui_alloc_array(&app.message_arena, ObjectPool, app.server_object_pool_allocated, CuiDefaultAllocationParams());
 
                 for (uint32_t i = 0; i < old_allocated; i += 1)
                 {
-                    app.server_generations[i] = old_generations[i];
+                    app.server_object_pools[i] = old_object_pools[i];
                 }
 
-                for (uint32_t i = old_allocated; i < app.server_generation_allocated; i += 1)
+                for (uint32_t i = old_allocated; i < app.server_object_pool_allocated; i += 1)
                 {
-                    app.server_generations[i] = 0;
+                    app.server_object_pools[i].generation = 0;
+                    app.server_object_pools[i].allocated = 4;
+                    app.server_object_pools[i].objects = cui_alloc_array(&app.message_arena, Object, app.server_object_pools[i].allocated, CuiDefaultAllocationParams());
                 }
             }
 
-            app.server_generations[index] += 1;
-            uint32_t generation = app.server_generations[index];
+            uint32_t object_index = app.server_object_pools[index].generation;
+
+            if (object_index == app.server_object_pools[index].allocated)
+            {
+                uint32_t old_allocated = app.server_object_pools[index].allocated;
+                app.server_object_pools[index].allocated = 64 * ((object_index / 64) + 1);
+
+                Object *old_objects = app.server_object_pools[index].objects;
+                app.server_object_pools[index].objects = cui_alloc_array(&app.message_arena, Object, app.server_object_pools[index].allocated, CuiDefaultAllocationParams());
+
+                for (uint32_t i = 0; i < old_allocated; i += 1)
+                {
+                    app.server_object_pools[index].objects[i] = old_objects[i];
+                }
+            }
+
+            app.server_object_pools[index].generation += 1;
+            uint32_t generation = app.server_object_pools[index].generation;
+
+            app.server_object_pools[index].objects[object_index].interface_name = interface_name;
 
             object_id = ((uint64_t) generation << 32) | (uint64_t) id;
 
@@ -1462,6 +1544,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     ListView *list_view = CuiContainerOf(widget, ListView, base);
 
+    CuiPoint mouse = cui_window_get_mouse_position(widget->window);
+
     CuiColor background_color = CuiHexColorLiteral(0xFF191C28);
 
     CuiRect list_rect = list_view->list_rect;
@@ -1564,6 +1648,9 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
         }
     }
 
+    ObjectId hovered_object_id = 0;
+    CuiRect hovered_rect;
+
     float message_x1 = (float) list_rect.max.x - cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(")"));
 
     while (index < count)
@@ -1574,6 +1661,8 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
         CuiColor text_color = CuiHexColor(0xFFAFB7C4);
         CuiColor character_color = CuiHexColor(0xFF333846);
+        CuiColor hover_border_color = CuiHexColor(0xFF333846);
+        CuiColor hover_background_color = CuiHexColor(0xFF242A3B);
 
         Message *message;
 
@@ -1611,6 +1700,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
                     cui_draw_fill_rect(ctx, cui_make_rect(list_rect.min.x, y, list_rect.max.x, y + row_height), blue_background);
                     text_color = CuiHexColor(0xFFFFFFFF);
                     character_color = blue_foreground;
+                    hover_border_color = blue_foreground;
                 }
 
                 filtered_index += 1;
@@ -1627,17 +1717,40 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
             x += list_view->px1;
 
-            w = cui_window_get_string_width(widget->window, app.list_view_font, message->interface_name);
-            cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) interface_content_width - w), (float) y + row_baseline, message->interface_name, text_color);
+            int32_t interface_name_x = x + list_view->px8;
+            float interface_name_width = cui_window_get_string_width(widget->window, app.list_view_font, message->interface_name);
+            CuiRect interface_name_rect = cui_make_rect(interface_name_x + interface_content_width - (int32_t) ceilf(interface_name_width) - space_w, y + list_view->px4,
+                                                        interface_name_x + interface_content_width, y + row_height - list_view->px4 - list_view->px1);
+
+            uint32_t id = (uint32_t) message->id;
+            CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), id);
+
+            int32_t id_x = x + interface_column_width + list_view->px1 + list_view->px8;
+            float id_width = cui_window_get_string_width(widget->window, app.list_view_font, id_str);
+            CuiRect id_rect = cui_make_rect(id_x, y + list_view->px6, id_x + (int32_t) ceilf(id_width) + space_w, y + list_view->px6 + line_height);
+
+            CuiRect object_id_rect = cui_rect_get_union(interface_name_rect, id_rect);
+
+            if (cui_rect_has_point_inside(object_id_rect, mouse))
+            {
+                hovered_object_id = message->id;
+                hovered_rect = object_id_rect;
+                float radius = (float) list_view->px2;
+                cui_draw_stroke_rounded_rect_4(ctx, object_id_rect, radius, radius, radius, radius, list_view->px1, hover_border_color);
+                object_id_rect.min.x += list_view->px1;
+                object_id_rect.min.y += list_view->px1;
+                object_id_rect.max.x -= list_view->px1;
+                object_id_rect.max.y -= list_view->px1;
+                cui_draw_fill_rounded_rect_1(ctx, object_id_rect, (float) list_view->px1, hover_background_color);
+            }
+
+            cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8) + ((float) interface_content_width - interface_name_width), (float) y + row_baseline, message->interface_name, text_color);
             x += interface_column_width;
 
             x += list_view->px1;
 
             w = cui_window_get_string_width(widget->window, app.list_view_font, app.id_character);
             cui_draw_fill_string(ctx, app.list_view_font, (float) x - 0.5f * w, (float) y + row_baseline, app.id_character, character_color);
-
-            uint32_t id = (uint32_t) message->id;
-            CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), id);
 
             cui_draw_fill_string(ctx, app.list_view_font, (float) (x + list_view->px8), (float) y + row_baseline, id_str, text_color);
             x += id_column_width;
@@ -1717,7 +1830,45 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
                     sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(": "), text_color);
                 }
 
-                sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+                switch (argument->type)
+                {
+                    case ARGUMENT_TYPE_NIL:
+                    case ARGUMENT_TYPE_FD:
+                    case ARGUMENT_TYPE_ARRAY:
+                    case ARGUMENT_TYPE_INTEGER:
+                    case ARGUMENT_TYPE_FIXED:
+                    {
+                        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+                    } break;
+
+                    case ARGUMENT_TYPE_STRING:
+                    {
+                        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, CuiHexColor(0xFFBFEFCF));
+                    } break;
+
+                    case ARGUMENT_TYPE_OBJECT:
+                    case ARGUMENT_TYPE_NEW_ID:
+                    {
+                        float value_width = cui_window_get_string_width(widget->window, app.list_view_font, argument->value_str);
+                        CuiRect argument_rect = cui_make_rect((int32_t) floorf(sub_x) - list_view->px1, y + list_view->px4,
+                                                              (int32_t) floorf(sub_x) + (int32_t) ceilf(value_width) + list_view->px1, y + row_height - list_view->px4 - list_view->px1);
+
+                        if (cui_rect_has_point_inside(argument_rect, mouse))
+                        {
+                            hovered_object_id = argument->value.id;
+                            hovered_rect = argument_rect;
+                            float radius = (float) list_view->px2;
+                            cui_draw_stroke_rounded_rect_4(ctx, argument_rect, radius, radius, radius, radius, list_view->px1, hover_border_color);
+                            argument_rect.min.x += list_view->px1;
+                            argument_rect.min.y += list_view->px1;
+                            argument_rect.max.x -= list_view->px1;
+                            argument_rect.max.y -= list_view->px1;
+                            cui_draw_fill_rounded_rect_1(ctx, argument_rect, (float) list_view->px1, hover_background_color);
+                        }
+
+                        sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, argument->value_str, cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
+                    } break;
+                }
             }
 
             sub_x += cui_draw_fill_string(ctx, app.list_view_font, sub_x, (float) y + row_baseline, CuiStringLiteral(")"), cui_make_color(1.0f, 1.0f, 1.0f, 1.0f));
@@ -1744,6 +1895,67 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     }
 
     cui_draw_set_clip_rect(ctx, prev_clip);
+
+    if (hovered_object_id)
+    {
+        Object *object = get_object_from_id(hovered_object_id);
+
+        int32_t info_width = interface_content_width + id_content_width + 2 * (list_view->px6 + list_view->px1);
+        int32_t info_height = line_height + 2 * (list_view->px6 + list_view->px1);
+
+        int32_t info_x = cui_max_int32(list_rect.min.x + list_view->px8, cui_min_int32(hovered_rect.min.x, list_rect.max.x - info_width - list_view->px8));
+        int32_t info_y = hovered_rect.max.y + list_view->px8;
+
+        int32_t radius = list_view->px2;
+        int32_t blur_radius = list_view->px8;
+        int32_t x_offset = 0;
+        int32_t y_offset = list_view->px2;
+
+        CuiRect info_rect = cui_make_rect(info_x, info_y, info_x + info_width, info_y + info_height);
+        CuiRect drop_shadow_rect = info_rect;
+
+        drop_shadow_rect.min.x += x_offset;
+        drop_shadow_rect.max.x += x_offset;
+        drop_shadow_rect.min.y += y_offset;
+        drop_shadow_rect.max.y += y_offset;
+
+        int32_t x_min = drop_shadow_rect.min.x + blur_radius;
+        int32_t y_min = drop_shadow_rect.min.y + blur_radius;
+        int32_t x_max = drop_shadow_rect.max.x - blur_radius;
+        int32_t y_max = drop_shadow_rect.max.y - blur_radius;
+
+        CuiColor box_shadow_color = CuiHexColor(0x6F000000);
+
+        cui_draw_fill_shadow(ctx, x_min + radius, drop_shadow_rect.min.y, x_max - radius, blur_radius, CUI_DIRECTION_NORTH, box_shadow_color);
+        cui_draw_fill_shadow(ctx, drop_shadow_rect.max.x, y_min + radius, y_max - radius, blur_radius, CUI_DIRECTION_EAST, box_shadow_color);
+        cui_draw_fill_shadow(ctx, x_min + radius, drop_shadow_rect.max.y, x_max - radius, blur_radius, CUI_DIRECTION_SOUTH, box_shadow_color);
+        cui_draw_fill_shadow(ctx, drop_shadow_rect.min.x, y_min + radius, y_max - radius, blur_radius, CUI_DIRECTION_WEST, box_shadow_color);
+
+        cui_draw_fill_shadow_corner(ctx, drop_shadow_rect.min.x, drop_shadow_rect.min.y, radius, blur_radius, CUI_DIRECTION_WEST, CUI_DIRECTION_NORTH, box_shadow_color);
+        cui_draw_fill_shadow_corner(ctx, drop_shadow_rect.max.x, drop_shadow_rect.min.y, radius, blur_radius, CUI_DIRECTION_EAST, CUI_DIRECTION_NORTH, box_shadow_color);
+        cui_draw_fill_shadow_corner(ctx, drop_shadow_rect.max.x, drop_shadow_rect.max.y, radius, blur_radius, CUI_DIRECTION_EAST, CUI_DIRECTION_SOUTH, box_shadow_color);
+        cui_draw_fill_shadow_corner(ctx, drop_shadow_rect.min.x, drop_shadow_rect.max.y, radius, blur_radius, CUI_DIRECTION_WEST, CUI_DIRECTION_SOUTH, box_shadow_color);
+
+        cui_draw_stroke_rounded_rect_4(ctx, info_rect, radius, radius, radius, radius, list_view->px1, CuiHexColor(0xFF333846));
+        info_rect.min.x += list_view->px1;
+        info_rect.min.y += list_view->px1;
+        info_rect.max.x -= list_view->px1;
+        info_rect.max.y -= list_view->px1;
+        cui_draw_fill_rounded_rect_1(ctx, info_rect, (float) (radius - list_view->px1), CuiHexColor(0xFF1E2332));
+
+        int32_t id_x = info_rect.min.x + list_view->px6;
+        int32_t id_y = info_rect.min.y + list_view->px6;
+        uint32_t generation = (uint32_t) (hovered_object_id >> 32);
+        uint32_t id         = (uint32_t) hovered_object_id;
+        CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), id);
+        CuiString generation_str = cui_sprint(&app.temporary_memory, CuiStringLiteral(" (gen: %u)"), generation);
+        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, object->interface_name, CuiHexColor(0xFFAFB7C4)));
+        id_x += space_w;
+        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, app.id_character, CuiHexColor(0xFF333846)));
+        id_x += space_w;
+        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, id_str, CuiHexColor(0xFFAFB7C4)));
+        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, generation_str, CuiHexColor(0xFF333846)));
+    }
 }
 
 static bool
@@ -3113,10 +3325,20 @@ parse_wayland_message(Message *message, CuiString str, int32_t *at_vs_hash, int3
                 fprintf(stderr, "warning: message creates more than 1 object.\n");
             }
 
-            uint32_t object_id = (uint32_t) argument->value.id;
-            argument->value.id = create_new_object_with_id(object_id);
+            CuiString interface_name = argument->interface_name;
 
-            created_object.interface_name = argument->interface_name;
+            if (cui_string_equals(interface_name, CuiStringLiteral("[unknown]")))
+            {
+                if ((argument_count >= 3) && (arguments[argument_count - 3].type == ARGUMENT_TYPE_STRING))
+                {
+                    interface_name = arguments[argument_count - 3].value.str;
+                }
+            }
+
+            uint32_t object_id = (uint32_t) argument->value.id;
+            argument->value.id = create_new_object_with_id(object_id, interface_name);
+
+            created_object.interface_name = interface_name;
             created_object.id = argument->value.id;
         }
 
@@ -3245,12 +3467,10 @@ load_wayland_file(CuiString wayland_filename)
         cui_arena_allocate(&app.message_arena, line_count * 512);
 
         app.next_highest_id = 1;
-        app.generation_allocated = 0;
-        app.generations = 0;
+        app.object_pool_allocated = 0;
 
         app.server_next_highest_id = 0;
-        app.server_generation_allocated = 0;
-        app.server_generations = 0;
+        app.server_object_pool_allocated = 0;
 
         app.message_allocated = line_count;
         app.message_count = 0;
@@ -3274,6 +3494,12 @@ load_wayland_file(CuiString wayland_filename)
             app.filtered_objects[i].count = 0;
             app.filtered_objects[i].items = cui_alloc_array(&app.message_arena, ObjectReference, app.filtered_objects[i].allocated, CuiDefaultAllocationParams());
         }
+
+#if CUI_DEBUG_BUILD
+        CuiAssert(create_new_object_with_id(1, CuiStringLiteral("wl_display")) == 0x0000000100000001);
+#else
+        create_new_object_with_id(1, CuiStringLiteral("wl_display"));
+#endif
 
         int32_t at_vs_hash = 0;
         int32_t client_vs_server = 0;
