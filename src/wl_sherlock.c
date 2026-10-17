@@ -180,9 +180,28 @@ typedef struct
     CuiString messages[3];
 } Filter;
 
+typedef struct Value Value;
+
+struct Value
+{
+    Value *next;
+    CuiString val;
+    uint32_t message_index;
+};
+
+typedef struct Attribute Attribute;
+
+struct Attribute
+{
+    Attribute *next;
+    CuiString name;
+    Value *first_value;
+};
+
 typedef struct
 {
     CuiString interface_name;
+    Attribute *first_attribute;
 } Object;
 
 typedef struct
@@ -268,12 +287,14 @@ typedef struct
 typedef struct MessageSpec MessageSpec;
 
 typedef void (*MessageFormatFunc)(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec);
+typedef void (*MessageProcessFunc)(Message *message, uint32_t message_index);
 
 struct MessageSpec
 {
     CuiString interface_name;
     CuiString message_name;
     MessageFormatFunc message_format_func;
+    MessageProcessFunc message_process_func;
     uint32_t argument_count;
     ArgumentSpec *arguments;
 };
@@ -460,6 +481,214 @@ create_new_object_with_id(uint32_t id, CuiString interface_name)
     }
 
     return object_id;
+}
+
+static inline Attribute *
+get_attribute(Object *object, CuiString name)
+{
+    Attribute *attribute = 0;
+
+    for (Attribute *attr = object->first_attribute; attr; attr = attr->next)
+    {
+        if (cui_string_equals(attr->name, name))
+        {
+            attribute = attr;
+            break;
+        }
+    }
+
+    return attribute;
+}
+
+static inline Attribute *
+make_sure_attribute_exists(Object *object, CuiString name)
+{
+    Attribute *attribute = get_attribute(object, name);
+
+    if (!attribute)
+    {
+        attribute = cui_alloc_type(&app.message_arena, Attribute, CuiDefaultAllocationParams());
+        attribute->next = object->first_attribute;
+        attribute->name = name;
+        attribute->first_value = 0;
+
+        object->first_attribute = attribute;
+    }
+
+    return attribute;
+}
+
+static void
+set_attribute(Object *object, CuiString name, CuiString value, uint32_t message_index)
+{
+    Attribute *attribute = make_sure_attribute_exists(object, name);
+
+    CuiAssert(!attribute->first_value || (message_index > attribute->first_value->message_index));
+
+    Value *val = cui_alloc_type(&app.message_arena, Value, CuiDefaultAllocationParams());
+    val->next = attribute->first_value;
+    val->val = value;
+    val->message_index = message_index;
+
+    attribute->first_value = val;
+}
+
+static Value *
+get_value_from_attribute(Attribute *attribute, uint32_t message_index)
+{
+    Value *value = 0;
+
+    for (Value *val = attribute->first_value; val; val = val->next)
+    {
+        if (val->message_index <= message_index)
+        {
+            value = val;
+            break;
+        }
+    }
+
+    return value;
+}
+
+static Value *
+get_value(Object *object, CuiString name, uint32_t message_index)
+{
+    Value *value = 0;
+
+    Attribute *attribute = get_attribute(object, name);
+
+    if (attribute)
+    {
+        value = get_value_from_attribute(attribute, message_index);
+    }
+
+    return value;
+}
+
+static void
+wl_shm_pool__create_buffer__process_func(Message *message, uint32_t message_index)
+{
+    Object *wl_buffer = get_object_from_id(message->arguments[0].value.id);
+
+    set_attribute(wl_buffer, CuiStringLiteral("format"), message->arguments[5].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("stride"), message->arguments[4].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("offset"), message->arguments[1].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("height"), message->arguments[3].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("width"), message->arguments[2].value_str, message_index);
+}
+
+static void
+wl_drm__create_buffer__process_func(Message *message, uint32_t message_index)
+{
+    Object *wl_buffer = get_object_from_id(message->arguments[0].value.id);
+
+    set_attribute(wl_buffer, CuiStringLiteral("format"), message->arguments[5].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("stride"), message->arguments[4].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("height"), message->arguments[3].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("width"), message->arguments[2].value_str, message_index);
+}
+
+static void
+xdg_surface__get_toplevel__process_func(Message *message, uint32_t message_index)
+{
+    (void) message_index;
+
+    Object *xdg_toplevel = get_object_from_id(message->arguments[0].value.id);
+
+    make_sure_attribute_exists(xdg_toplevel, CuiStringLiteral("app_id"));
+    make_sure_attribute_exists(xdg_toplevel, CuiStringLiteral("title"));
+}
+
+static void
+xdg_toplevel__set_title__process_func(Message *message, uint32_t message_index)
+{
+    Object *xdg_toplevel = get_object_from_id(message->id);
+
+    set_attribute(xdg_toplevel, CuiStringLiteral("title"), message->arguments[0].value_str, message_index);
+}
+
+static void
+xdg_toplevel__set_app_id__process_func(Message *message, uint32_t message_index)
+{
+    Object *xdg_toplevel = get_object_from_id(message->id);
+
+    set_attribute(xdg_toplevel, CuiStringLiteral("app_id"), message->arguments[0].value_str, message_index);
+}
+
+static void
+zwp_linux_dmabuf_v1__create_params__process_func(Message *message, uint32_t message_index)
+{
+    (void) message_index;
+
+    Object *zwp_linux_buffer_params_v1 = get_object_from_id(message->arguments[0].value.id);
+
+    make_sure_attribute_exists(zwp_linux_buffer_params_v1, CuiStringLiteral("format"));
+    make_sure_attribute_exists(zwp_linux_buffer_params_v1, CuiStringLiteral("height"));
+    make_sure_attribute_exists(zwp_linux_buffer_params_v1, CuiStringLiteral("width"));
+}
+
+static void
+zwp_linux_buffer_params_v1__create__process_func(Message *message, uint32_t message_index)
+{
+    Object *zwp_linux_buffer_params_v1 = get_object_from_id(message->id);
+
+    set_attribute(zwp_linux_buffer_params_v1, CuiStringLiteral("format"), message->arguments[2].value_str, message_index);
+    set_attribute(zwp_linux_buffer_params_v1, CuiStringLiteral("height"), message->arguments[1].value_str, message_index);
+    set_attribute(zwp_linux_buffer_params_v1, CuiStringLiteral("width"), message->arguments[0].value_str, message_index);
+}
+
+static void
+zwp_linux_buffer_params_v1__create_immed__process_func(Message *message, uint32_t message_index)
+{
+    Object *wl_buffer = get_object_from_id(message->arguments[0].value.id);
+    Object *zwp_linux_buffer_params_v1 = get_object_from_id(message->id);
+
+    set_attribute(zwp_linux_buffer_params_v1, CuiStringLiteral("format"), message->arguments[3].value_str, message_index);
+    set_attribute(zwp_linux_buffer_params_v1, CuiStringLiteral("height"), message->arguments[2].value_str, message_index);
+    set_attribute(zwp_linux_buffer_params_v1, CuiStringLiteral("width"), message->arguments[1].value_str, message_index);
+
+    set_attribute(wl_buffer, CuiStringLiteral("format"), message->arguments[3].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("height"), message->arguments[2].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("width"), message->arguments[1].value_str, message_index);
+}
+
+static void
+zwp_linux_buffer_params_v1__created__process_func(Message *message, uint32_t message_index)
+{
+    Object *wl_buffer = get_object_from_id(message->arguments[0].value.id);
+    Object *zwp_linux_buffer_params_v1 = get_object_from_id(message->id);
+
+    Value *format = get_value(zwp_linux_buffer_params_v1, CuiStringLiteral("format"), message_index);
+
+    if (format)
+    {
+        set_attribute(wl_buffer, CuiStringLiteral("format"), format->val, message_index);
+    }
+
+    Value *height = get_value(zwp_linux_buffer_params_v1, CuiStringLiteral("height"), message_index);
+
+    if (height)
+    {
+        set_attribute(wl_buffer, CuiStringLiteral("height"), height->val, message_index);
+    }
+
+    Value *width = get_value(zwp_linux_buffer_params_v1, CuiStringLiteral("width"), message_index);
+
+    if (width)
+    {
+        set_attribute(wl_buffer, CuiStringLiteral("width"), width->val, message_index);
+    }
+}
+
+static void
+wayland_buffer_backend__create_buffer__process_func(Message *message, uint32_t message_index)
+{
+    Object *wl_buffer = get_object_from_id(message->arguments[0].value.id);
+
+    set_attribute(wl_buffer, CuiStringLiteral("format"), message->arguments[5].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("stride"), message->arguments[6].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("height"), message->arguments[4].value_str, message_index);
+    set_attribute(wl_buffer, CuiStringLiteral("width"), message->arguments[3].value_str, message_index);
 }
 
 static inline bool
@@ -1127,6 +1356,67 @@ drm_format_modifier_format(Argument *dst, Argument *src, CuiString label, CuiStr
 }
 
 static void
+drm_flags_format(Argument *dst, Argument *src, CuiString label)
+{
+    CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
+
+    dst->type = src->type;
+    dst->interface_name = src->interface_name;
+    dst->label = label;
+    dst->value = src->value;
+
+    CuiTemporaryMemory temp_memory = cui_begin_temporary_memory(&app.temporary_memory);
+
+    CuiStringBuilder string_builder;
+    cui_string_builder_init(&string_builder, &app.temporary_memory);
+
+    if (dst->value.i)
+    {
+        bool first = true;
+
+        if (dst->value.i & (1 << 0))
+        {
+            cui_string_builder_append_string(&string_builder, CuiStringLiteral("ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT"));
+            first = false;
+        }
+
+        if (dst->value.i & (1 << 1))
+        {
+            if (first)
+            {
+                cui_string_builder_append_string(&string_builder, CuiStringLiteral("ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED"));
+                first = false;
+            }
+            else
+            {
+                cui_string_builder_append_string(&string_builder, CuiStringLiteral(" | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED"));
+            }
+        }
+
+        if (dst->value.i & (1 << 2))
+        {
+            if (first)
+            {
+                cui_string_builder_append_string(&string_builder, CuiStringLiteral("ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST"));
+                first = false;
+            }
+            else
+            {
+                cui_string_builder_append_string(&string_builder, CuiStringLiteral(" | ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST"));
+            }
+        }
+
+        dst->value_str = cui_string_builder_to_string(&string_builder, &app.message_arena);
+    }
+    else
+    {
+        dst->value_str = CuiStringLiteral("0");
+    }
+
+    cui_end_temporary_memory(temp_memory);
+}
+
+static void
 wayland_buffer_backend_format_format(Argument *dst, Argument *src, CuiString label)
 {
     CuiAssert(src->type == ARGUMENT_TYPE_INTEGER);
@@ -1650,6 +1940,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
 
     ObjectId hovered_object_id = 0;
     CuiRect hovered_rect;
+    uint32_t hovered_message_index = 0;
 
     float message_x1 = (float) list_rect.max.x - cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral(")"));
 
@@ -1665,22 +1956,23 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
         CuiColor hover_background_color = CuiHexColor(0xFF242A3B);
 
         Message *message;
+        uint32_t message_index = 0;
 
         if (list_view->is_filtered)
         {
             if (list_view->show_non_wayland_messages)
             {
-                message = app.messages + app.filtered_messages[index];
+                message_index = app.filtered_messages[index];
+                message = app.messages + message_index;
             }
             else
             {
-                message = app.messages + app.filtered_wayland_messages[index].message_index;
+                message_index = app.filtered_wayland_messages[index].message_index;
+                message = app.messages + message_index;
             }
         }
         else
         {
-            uint32_t message_index;
-
             if (list_view->show_non_wayland_messages)
             {
                 message_index = index;
@@ -1735,6 +2027,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
             {
                 hovered_object_id = message->id;
                 hovered_rect = object_id_rect;
+                hovered_message_index = message_index;
                 float radius = (float) list_view->px2;
                 cui_draw_stroke_rounded_rect_4(ctx, object_id_rect, radius, radius, radius, radius, list_view->px1, hover_border_color);
                 object_id_rect.min.x += list_view->px1;
@@ -1857,6 +2150,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
                         {
                             hovered_object_id = argument->value.id;
                             hovered_rect = argument_rect;
+                            hovered_message_index = message_index;
                             float radius = (float) list_view->px2;
                             cui_draw_stroke_rounded_rect_4(ctx, argument_rect, radius, radius, radius, radius, list_view->px1, hover_border_color);
                             argument_rect.min.x += list_view->px1;
@@ -1900,8 +2194,15 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     {
         Object *object = get_object_from_id(hovered_object_id);
 
+        int32_t attribute_count = 0;
+
+        for (Attribute *attribute = object->first_attribute; attribute; attribute = attribute->next)
+        {
+            attribute_count += 1;
+        }
+
         int32_t info_width = interface_content_width + id_content_width + 2 * (list_view->px6 + list_view->px1);
-        int32_t info_height = line_height + 2 * (list_view->px6 + list_view->px1);
+        int32_t info_height = attribute_count * (line_height + list_view->px4) + line_height + 2 * (list_view->px6 + list_view->px1);
 
         int32_t info_x = cui_max_int32(list_rect.min.x + list_view->px8, cui_min_int32(hovered_rect.min.x, list_rect.max.x - info_width - list_view->px8));
         int32_t info_y = hovered_rect.max.y + list_view->px8;
@@ -1943,18 +2244,40 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
         info_rect.max.y -= list_view->px1;
         cui_draw_fill_rounded_rect_1(ctx, info_rect, (float) (radius - list_view->px1), CuiHexColor(0xFF1E2332));
 
-        int32_t id_x = info_rect.min.x + list_view->px6;
-        int32_t id_y = info_rect.min.y + list_view->px6;
+        int32_t x_start = info_rect.min.x + list_view->px6;
+        x = x_start;
+        y = info_rect.min.y + list_view->px6;
+
         uint32_t generation = (uint32_t) (hovered_object_id >> 32);
         uint32_t id         = (uint32_t) hovered_object_id;
         CuiString id_str = cui_sprint(&app.temporary_memory, CuiStringLiteral("%u"), id);
         CuiString generation_str = cui_sprint(&app.temporary_memory, CuiStringLiteral(" (gen: %u)"), generation);
-        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, object->interface_name, CuiHexColor(0xFFAFB7C4)));
-        id_x += space_w;
-        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, app.id_character, CuiHexColor(0xFF333846)));
-        id_x += space_w;
-        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, id_str, CuiHexColor(0xFFAFB7C4)));
-        id_x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) id_x, (float) id_y + baseline_offset, generation_str, CuiHexColor(0xFF333846)));
+        x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + baseline_offset, object->interface_name, CuiHexColor(0xFFAFB7C4)));
+        x += space_w;
+        x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + baseline_offset, app.id_character, CuiHexColor(0xFF333846)));
+        x += space_w;
+        x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + baseline_offset, id_str, CuiHexColor(0xFFAFB7C4)));
+        x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + baseline_offset, generation_str, CuiHexColor(0xFF333846)));
+
+        for (Attribute *attribute = object->first_attribute; attribute; attribute = attribute->next)
+        {
+            y += line_height + list_view->px4;
+
+            Value *value = get_value_from_attribute(attribute, hovered_message_index);
+
+            x = x_start + space_w;
+            x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + baseline_offset, attribute->name, CuiHexColor(0xFFAFB7C4)));
+            x += space_w;
+
+            if (value)
+            {
+                x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + baseline_offset, value->val, CuiHexColor(0xFFFFFFFF)));
+            }
+            else
+            {
+                x += (int32_t) ceilf(cui_draw_fill_string(ctx, app.list_view_font, (float) x, (float) y + baseline_offset, CuiStringLiteral("(not set)"), CuiHexColor(0xFF333846)));
+            }
+        }
     }
 }
 
@@ -3172,7 +3495,7 @@ parse_argument(CuiString *str, Argument *argument)
 }
 
 static inline bool
-parse_wayland_message(Message *message, CuiString str, int32_t *at_vs_hash, int32_t *client_vs_server)
+parse_wayland_message(Message *message, uint32_t message_index, CuiString str, int32_t *at_vs_hash, int32_t *client_vs_server)
 {
     str = cui_string_trim(str);
 
@@ -3395,6 +3718,11 @@ parse_wayland_message(Message *message, CuiString str, int32_t *at_vs_hash, int3
         {
             format_message(message, argument_count, arguments, message_spec);
         }
+
+        if (message_spec->message_process_func)
+        {
+            message_spec->message_process_func(message, message_index);
+        }
     }
     else
     {
@@ -3514,7 +3842,7 @@ load_wayland_file(CuiString wayland_filename)
             Message *message = app.messages + message_index;
             app.message_count += 1;
 
-            if (parse_wayland_message(message, str, &at_vs_hash, &client_vs_server))
+            if (parse_wayland_message(message, message_index, str, &at_vs_hash, &client_vs_server))
             {
                 app.wayland_messages[app.wayland_message_count] = message_index;
                 app.wayland_message_count += 1;

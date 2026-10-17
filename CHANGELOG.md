@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+  - Add object attributes
+
+### Changed
+
+  - Change column label from 'Timestamp' to 'Time (ms)'
+
+### Fixed
+
+  - Migrate build pipeline to VS 2026
+
 ## [0.4.2] - 2025-11-02
 
 ### Added
