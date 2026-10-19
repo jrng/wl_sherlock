@@ -691,6 +691,106 @@ wayland_buffer_backend__create_buffer__process_func(Message *message, uint32_t m
     set_attribute(wl_buffer, CuiStringLiteral("width"), message->arguments[3].value_str, message_index);
 }
 
+static void
+zmbition_shared_textures_manager_v1__publish__process_func(Message *message, uint32_t message_index)
+{
+    Object *zmbition_published_texture_v1 = get_object_from_id(message->arguments[0].value.id);
+
+    set_attribute(zmbition_published_texture_v1, CuiStringLiteral("format"), message->arguments[4].value_str, message_index);
+    set_attribute(zmbition_published_texture_v1, CuiStringLiteral("stride"), message->arguments[7].value_str, message_index);
+    set_attribute(zmbition_published_texture_v1, CuiStringLiteral("offset"), message->arguments[6].value_str, message_index);
+    set_attribute(zmbition_published_texture_v1, CuiStringLiteral("height"), message->arguments[3].value_str, message_index);
+    set_attribute(zmbition_published_texture_v1, CuiStringLiteral("width"), message->arguments[2].value_str, message_index);
+    set_attribute(zmbition_published_texture_v1, CuiStringLiteral("id"), message->arguments[1].value_str, message_index);
+}
+
+static void
+zmbition_shared_textures_manager_v1__request__process_func(Message *message, uint32_t message_index)
+{
+    Object *zmbition_requested_texture_v1 = get_object_from_id(message->arguments[0].value.id);
+
+    make_sure_attribute_exists(zmbition_requested_texture_v1, CuiStringLiteral("format"));
+    make_sure_attribute_exists(zmbition_requested_texture_v1, CuiStringLiteral("stride"));
+    make_sure_attribute_exists(zmbition_requested_texture_v1, CuiStringLiteral("offset"));
+    make_sure_attribute_exists(zmbition_requested_texture_v1, CuiStringLiteral("height"));
+    make_sure_attribute_exists(zmbition_requested_texture_v1, CuiStringLiteral("width"));
+    set_attribute(zmbition_requested_texture_v1, CuiStringLiteral("id"), message->arguments[1].value_str, message_index);
+}
+
+static void
+zmbition_requested_texture_v1__ready__process_func(Message *message, uint32_t message_index)
+{
+    Object *zmbition_requested_texture_v1 = get_object_from_id(message->id);
+
+    set_attribute(zmbition_requested_texture_v1, CuiStringLiteral("format"), message->arguments[3].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v1, CuiStringLiteral("stride"), message->arguments[5].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v1, CuiStringLiteral("offset"), message->arguments[4].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v1, CuiStringLiteral("height"), message->arguments[2].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v1, CuiStringLiteral("width"), message->arguments[1].value_str, message_index);
+}
+
+static void
+zmbition_shared_textures_manager_v2__publish__process_func(Message *message, uint32_t message_index)
+{
+    Object *zmbition_published_texture_v2 = get_object_from_id(message->arguments[0].value.id);
+
+    set_attribute(zmbition_published_texture_v2, CuiStringLiteral("format"), message->arguments[5].value_str, message_index);
+    set_attribute(zmbition_published_texture_v2, CuiStringLiteral("stride"), message->arguments[7].value_str, message_index);
+    set_attribute(zmbition_published_texture_v2, CuiStringLiteral("offset"), message->arguments[6].value_str, message_index);
+    set_attribute(zmbition_published_texture_v2, CuiStringLiteral("height"), message->arguments[4].value_str, message_index);
+    set_attribute(zmbition_published_texture_v2, CuiStringLiteral("width"), message->arguments[3].value_str, message_index);
+    set_attribute(zmbition_published_texture_v2, CuiStringLiteral("id"), message->arguments[1].value_str, message_index);
+
+    if (message->argument_count == 9)
+    {
+        set_attribute(zmbition_published_texture_v2, CuiStringLiteral("modifier"), message->arguments[8].value_str, message_index);
+    }
+    else
+    {
+        CuiAssert(message->argument_count == 10);
+
+        set_attribute(zmbition_published_texture_v2, CuiStringLiteral("modifier_lo"), message->arguments[9].value_str, message_index);
+        set_attribute(zmbition_published_texture_v2, CuiStringLiteral("modifier_hi"), message->arguments[8].value_str, message_index);
+    }
+}
+
+static void
+zmbition_shared_textures_manager_v2__request__process_func(Message *message, uint32_t message_index)
+{
+    Object *zmbition_requested_texture_v2 = get_object_from_id(message->arguments[0].value.id);
+
+    make_sure_attribute_exists(zmbition_requested_texture_v2, CuiStringLiteral("format"));
+    make_sure_attribute_exists(zmbition_requested_texture_v2, CuiStringLiteral("stride"));
+    make_sure_attribute_exists(zmbition_requested_texture_v2, CuiStringLiteral("offset"));
+    make_sure_attribute_exists(zmbition_requested_texture_v2, CuiStringLiteral("height"));
+    make_sure_attribute_exists(zmbition_requested_texture_v2, CuiStringLiteral("width"));
+    set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("id"), message->arguments[1].value_str, message_index);
+}
+
+static void
+zmbition_requested_texture_v2__ready__process_func(Message *message, uint32_t message_index)
+{
+    Object *zmbition_requested_texture_v2 = get_object_from_id(message->id);
+
+    set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("format"), message->arguments[3].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("stride"), message->arguments[5].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("offset"), message->arguments[4].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("height"), message->arguments[2].value_str, message_index);
+    set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("width"), message->arguments[1].value_str, message_index);
+
+    if (message->argument_count == 7)
+    {
+        set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("modifier"), message->arguments[6].value_str, message_index);
+    }
+    else
+    {
+        CuiAssert(message->argument_count == 8);
+
+        set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("modifier_lo"), message->arguments[7].value_str, message_index);
+        set_attribute(zmbition_requested_texture_v2, CuiStringLiteral("modifier_hi"), message->arguments[6].value_str, message_index);
+    }
+}
+
 static inline bool
 message_matches_signature(uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
 {
@@ -1572,6 +1672,48 @@ zwp_linux_buffer_params_v1__add__format_func(Message *message, uint32_t argument
     format_argument(message->arguments + 3, arguments + 3, message_spec->arguments[3].label);
 
     if (drm_format_modifier_format(message->arguments + 4, arguments + 4, CuiStringLiteral("modifier"),
+                                   CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    {
+        message->argument_count -= 1;
+    }
+}
+
+static void
+zmbition_shared_textures_manager_v2__publish__format_func(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
+{
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    format_argument(message->arguments + 0, arguments + 0, message_spec->arguments[0].label);
+    format_argument(message->arguments + 1, arguments + 1, message_spec->arguments[1].label);
+    format_argument(message->arguments + 2, arguments + 2, message_spec->arguments[2].label);
+    format_argument(message->arguments + 3, arguments + 3, message_spec->arguments[3].label);
+    format_argument(message->arguments + 4, arguments + 4, message_spec->arguments[4].label);
+    drm_format_format(message->arguments + 5, arguments + 5, message_spec->arguments[5].label);
+    format_argument(message->arguments + 6, arguments + 6, message_spec->arguments[6].label);
+    format_argument(message->arguments + 7, arguments + 7, message_spec->arguments[7].label);
+
+    if (drm_format_modifier_format(message->arguments + 8, arguments + 8, CuiStringLiteral("modifier"),
+                                   CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
+    {
+        message->argument_count -= 1;
+    }
+}
+
+static void
+zmbition_shared_textures_manager_v2__ready__format_func(Message *message, uint32_t argument_count, Argument *arguments, MessageSpec *message_spec)
+{
+    message->argument_count = argument_count;
+    message->arguments = cui_alloc_array(&app.message_arena, Argument, argument_count, CuiDefaultAllocationParams());
+
+    format_argument(message->arguments + 0, arguments + 0, message_spec->arguments[0].label);
+    format_argument(message->arguments + 1, arguments + 1, message_spec->arguments[1].label);
+    format_argument(message->arguments + 2, arguments + 2, message_spec->arguments[2].label);
+    drm_format_format(message->arguments + 3, arguments + 3, message_spec->arguments[3].label);
+    format_argument(message->arguments + 4, arguments + 4, message_spec->arguments[4].label);
+    format_argument(message->arguments + 5, arguments + 5, message_spec->arguments[5].label);
+
+    if (drm_format_modifier_format(message->arguments + 6, arguments + 6, CuiStringLiteral("modifier"),
                                    CuiStringLiteral("modifier_hi"), CuiStringLiteral("modifier_lo")))
     {
         message->argument_count -= 1;

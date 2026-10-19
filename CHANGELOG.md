@@ -5,6 +5,7 @@
 ### Added
 
   - Add object attributes
+  - Add mbition-shared-textures-unstable-v1+2 formating
 
 ### Changed
 

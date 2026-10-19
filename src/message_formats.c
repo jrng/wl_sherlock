@@ -170,6 +170,60 @@ static ArgumentSpec zxdg_toplevel_decoration_v1__configure__arguments[] = {
     { .type = ARGUMENT_TYPE_INTEGER, .label = { 0, 0 }, .format_func = zxdg_toplevel_decoration_v1_mode_format },
 };
 
+static ArgumentSpec zmbition_shared_textures_manager_v1__publish__arguments[] = {
+    { .type = ARGUMENT_TYPE_NEW_ID , .label = { 0, 0 }                   , .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_STRING , .label = { 0, 0 }                   , .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("width") , .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("height"), .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("format"), .format_func = drm_format_format },
+    { .type = ARGUMENT_TYPE_FD     , .label = { 0, 0 }                   , .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("offset"), .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("stride"), .format_func = 0                 },
+};
+
+static ArgumentSpec zmbition_shared_textures_manager_v1__request__arguments[] = {
+    { .type = ARGUMENT_TYPE_NEW_ID , .label = { 0, 0 }, .format_func = 0 },
+    { .type = ARGUMENT_TYPE_STRING , .label = { 0, 0 }, .format_func = 0 },
+};
+
+static ArgumentSpec zmbition_requested_texture_v1__ready__arguments[] = {
+    { .type = ARGUMENT_TYPE_FD     , .label = { 0, 0 }                   , .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("width") , .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("height"), .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("format"), .format_func = drm_format_format },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("offset"), .format_func = 0                 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("stride"), .format_func = 0                 },
+};
+
+static ArgumentSpec zmbition_shared_textures_manager_v2__publish__arguments[] = {
+    { .type = ARGUMENT_TYPE_NEW_ID , .label = { 0, 0 }                        , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_STRING , .label = { 0, 0 }                        , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_FD     , .label = { 0, 0 }                        , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("width")      , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("height")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("format")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("offset")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("stride")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("modifier_hi"), .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("modifier_lo"), .format_func = 0 },
+};
+
+static ArgumentSpec zmbition_shared_textures_manager_v2__request__arguments[] = {
+    { .type = ARGUMENT_TYPE_NEW_ID , .label = { 0, 0 }, .format_func = 0 },
+    { .type = ARGUMENT_TYPE_STRING , .label = { 0, 0 }, .format_func = 0 },
+};
+
+static ArgumentSpec zmbition_requested_texture_v2__ready__arguments[] = {
+    { .type = ARGUMENT_TYPE_FD     , .label = { 0, 0 }                        , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("width")      , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("height")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("format")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("offset")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("stride")     , .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("modifier_hi"), .format_func = 0 },
+    { .type = ARGUMENT_TYPE_INTEGER, .label = CuiStringConstant("modifier_lo"), .format_func = 0 },
+};
+
 // This only lists labels for messages that have more than 1
 // argument as non or single argument messages are pretty self-explanatory.
 
@@ -381,5 +435,53 @@ static MessageSpec message_specs[] = {
         .message_process_func = 0,
         .argument_count       = CuiArrayCount(zxdg_toplevel_decoration_v1__configure__arguments),
         .arguments            = zxdg_toplevel_decoration_v1__configure__arguments,
+    },
+    {
+        .interface_name       = CuiStringConstant("zmbition_shared_textures_manager_v1"),
+        .message_name         = CuiStringConstant("publish"),
+        .message_format_func  = 0,
+        .message_process_func = zmbition_shared_textures_manager_v1__publish__process_func,
+        .argument_count       = CuiArrayCount(zmbition_shared_textures_manager_v1__publish__arguments),
+        .arguments            = zmbition_shared_textures_manager_v1__publish__arguments,
+    },
+    {
+        .interface_name       = CuiStringConstant("zmbition_shared_textures_manager_v1"),
+        .message_name         = CuiStringConstant("request"),
+        .message_format_func  = 0,
+        .message_process_func = zmbition_shared_textures_manager_v1__request__process_func,
+        .argument_count       = CuiArrayCount(zmbition_shared_textures_manager_v1__request__arguments),
+        .arguments            = zmbition_shared_textures_manager_v1__request__arguments,
+    },
+    {
+        .interface_name       = CuiStringConstant("zmbition_requested_texture_v1"),
+        .message_name         = CuiStringConstant("ready"),
+        .message_format_func  = 0,
+        .message_process_func = zmbition_requested_texture_v1__ready__process_func,
+        .argument_count       = CuiArrayCount(zmbition_requested_texture_v1__ready__arguments),
+        .arguments            = zmbition_requested_texture_v1__ready__arguments,
+    },
+    {
+        .interface_name       = CuiStringConstant("zmbition_shared_textures_manager_v2"),
+        .message_name         = CuiStringConstant("publish"),
+        .message_format_func  = zmbition_shared_textures_manager_v2__publish__format_func,
+        .message_process_func = zmbition_shared_textures_manager_v2__publish__process_func,
+        .argument_count       = CuiArrayCount(zmbition_shared_textures_manager_v2__publish__arguments),
+        .arguments            = zmbition_shared_textures_manager_v2__publish__arguments,
+    },
+    {
+        .interface_name       = CuiStringConstant("zmbition_shared_textures_manager_v2"),
+        .message_name         = CuiStringConstant("request"),
+        .message_format_func  = 0,
+        .message_process_func = zmbition_shared_textures_manager_v2__request__process_func,
+        .argument_count       = CuiArrayCount(zmbition_shared_textures_manager_v2__request__arguments),
+        .arguments            = zmbition_shared_textures_manager_v2__request__arguments,
+    },
+    {
+        .interface_name       = CuiStringConstant("zmbition_requested_texture_v2"),
+        .message_name         = CuiStringConstant("ready"),
+        .message_format_func  = zmbition_shared_textures_manager_v2__ready__format_func,
+        .message_process_func = zmbition_requested_texture_v2__ready__process_func,
+        .argument_count       = CuiArrayCount(zmbition_requested_texture_v2__ready__arguments),
+        .arguments            = zmbition_requested_texture_v2__ready__arguments,
     },
 };
