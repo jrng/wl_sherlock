@@ -1845,7 +1845,7 @@ list_view_draw(CuiWidget *widget, CuiGraphicsContext *ctx, const CuiColorTheme *
     int32_t type_rect_w = (int32_t) ceilf(widget->ui_scale * app.font_size);
 
     int32_t timestamp_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999.999")));
-    int32_t interface_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")));
+    int32_t interface_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")));
     int32_t id_content_width = (int32_t) ceilf(cui_window_get_string_width(widget->window, app.list_view_font, CuiStringLiteral("9999999999")));
 
     int32_t timestamp_column_width = timestamp_content_width + 2 * list_view->px8;
