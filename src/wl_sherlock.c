@@ -713,7 +713,7 @@ message_matches_signature(uint32_t argument_count, Argument *arguments, MessageS
         // TODO: ARGUMENT_TYPE_NEW_ID can also be nil
         if (((argument_spec->type == ARGUMENT_TYPE_STRING) ||
              (argument_spec->type == ARGUMENT_TYPE_OBJECT)) &&
-             (argument_spec->type == ARGUMENT_TYPE_NIL))
+             (arguments[i].type == ARGUMENT_TYPE_NIL))
         {
             continue;
         }
