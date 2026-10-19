@@ -3792,7 +3792,7 @@ load_wayland_file(CuiString wayland_filename)
             }
         }
 
-        cui_arena_allocate(&app.message_arena, line_count * 512);
+        cui_arena_allocate(&app.message_arena, line_count * CuiKiB(1));
 
         app.next_highest_id = 1;
         app.object_pool_allocated = 0;
