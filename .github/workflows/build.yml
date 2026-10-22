@@ -18,12 +18,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout 'cui'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: jrng/cui
           path: cui
       - name: Checkout 'wl_sherlock'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: wl_sherlock
       - name: Build 'cui'
@@ -62,12 +62,12 @@ jobs:
           sudo apt update
           sudo apt install --yes libegl-dev libx11-dev libxrandr-dev libwayland-dev libxkbcommon-dev libgles-dev
       - name: Checkout 'cui'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: jrng/cui
           path: cui
       - name: Checkout 'wl_sherlock'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: wl_sherlock
       - name: Build 'cui'
@@ -102,12 +102,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout 'cui'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: jrng/cui
           path: cui
       - name: Checkout 'wl_sherlock'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: wl_sherlock
       - name: Build 'cui'
